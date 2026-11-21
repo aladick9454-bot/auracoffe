@@ -7,6 +7,17 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 const allowedOrigin = 'https://aladick9454-bot.github.io';
 
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'aura-coffee-api',
+    timestamp: new Date().toISOString(),
+    uptime_seconds: Math.floor(process.uptime())
+  });
+});
+
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Vary', 'Origin');
