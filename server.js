@@ -50,4 +50,34 @@ const message=`☕ <b>Новый запрос AURA COFFEE</b>\nИмя: ${escape(
 try{const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),8000);let response;try{response=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId,text:message,parse_mode:'HTML'}),signal:controller.signal});}finally{clearTimeout(timeout);}if(!response.ok)throw Error('Telegram returned '+response.status);res.json({ok:true});}catch(error){console.error('Booking delivery error:',error.message);res.status(502).json({error:'Не удалось доставить запрос. Попробуйте позже.'});}
 });
 app.get('/api/health',(_req,res)=>res.json({ok:true,telegramConfigured:Boolean(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID)}));
-const port=Number(process.env.PORT)||3000;app.listen(port,()=>console.log(`AURA COFFEE: http://localhost:${port}`));
+const port=Number(process.env.PORT)||3000;
+
+app.get('/api/monitoring', (req, res) => {
+  const monitoringData = {
+    checked_at: new Date().toISOString(),
+    overall_status: 'warning',
+    problems_count: 1,
+
+    components: {
+      system_health: {
+        status: 'healthy'
+      },
+      availability: {
+        status: 'healthy'
+      },
+      performance_frontend: {
+        status: 'warning'
+      },
+      performance_backend: {
+        status: 'healthy'
+      },
+      daily_reports: {
+        status: 'healthy'
+      }
+    }
+  };
+
+  res.json(monitoringData);
+});
+
+app.listen(port,()=>console.log(`AURA COFFEE: http://localhost:${port}`));
