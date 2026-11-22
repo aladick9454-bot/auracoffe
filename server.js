@@ -2,7 +2,7 @@
 'use strict';
 
 require('dotenv').config();
-
+const crypto = require('crypto');
 const express = require('express');
 const path = require('path');
 
@@ -291,6 +291,89 @@ app.get('/api/monitoring', (req, res) => {
 
 // Запуск сервера
 const port = Number(process.env.PORT) || 3000;
+
+
+let latestMonitoring = null;
+
+app.post('/api/monitoring/ingest', (req, res) => {
+  const expected =
+    process.env.MONITORING_INGEST_SECRET;
+
+  const provided =
+    req.get('x-monitoring-secret') || '';
+
+  if (!expected || !provided) {
+    return res.sendStatus(403);
+  }
+
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+
+  if (
+    expectedBuffer.length !== providedBuffer.length ||
+    !crypto.timingSafeEqual(
+      expectedBuffer,
+      providedBuffer
+    )
+  ) {
+    return res.sendStatus(403);
+  }
+
+  const data = req.body;
+
+  const validStatuses = [
+    'healthy',
+    'warning',
+    'critical',
+    'unknown'
+  ];
+
+  const componentKeys = [
+    'system_health',
+    'availability',
+    'performance_frontend',
+    'performance_backend',
+    'daily_reports'
+  ];
+
+  const valid =
+    data &&
+    typeof data === 'object' &&
+    typeof data.checked_at === 'string' &&
+    Number.isFinite(Date.parse(data.checked_at)) &&
+    validStatuses.includes(data.overall_status) &&
+    Number.isInteger(data.problems_count) &&
+    data.problems_count >= 0 &&
+    data.components &&
+    componentKeys.every(key =>
+      validStatuses.includes(
+        data.components[key]?.status
+      )
+    );
+
+  if (!valid) {
+    return res.status(400).json({
+      error: 'Invalid monitoring payload'
+    });
+  }
+
+  latestMonitoring = {
+    checked_at: data.checked_at,
+    overall_status: data.overall_status,
+    problems_count: data.problems_count,
+    components: Object.fromEntries(
+      componentKeys.map(key => [
+        key,
+        {
+          status: data.components[key].status
+        }
+      ])
+    )
+  };
+
+  res.json({ ok: true });
+});
+
 
 app.listen(port, () => {
   console.log(`AURA COFFEE: http://localhost:${port}`);
