@@ -302,12 +302,6 @@ app.post('/api/monitoring/ingest', (req, res) => {
   const provided =
     req.get('x-monitoring-secret') || '';
 
-console.log('Monitoring auth diagnostic:', {
-  secretConfigured: Boolean(expected),
-  headerReceived: Boolean(provided),
-  secretLength: expected?.length ?? 0,
-  headerLength: provided.length
-});
 
   if (!expected || !provided) {
     return res.sendStatus(403);
