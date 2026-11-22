@@ -1,0 +1,78 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+  <title>AURA COFFEE — Monitoring</title>
+
+  <link rel="stylesheet" href="/frontend/monitoring.css">
+</head>
+<body>
+
+  <main class="dashboard">
+
+    <header class="dashboard-header">
+      <div>
+        <h1>AURA COFFEE</h1>
+        <p>Центр мониторинга бизнеса</p>
+      </div>
+
+      <span id="overall-status" class="status">
+        Загрузка...
+      </span>
+    </header>
+
+    <section class="dashboard-grid">
+
+      <article class="monitor-card">
+        <h2>CRM</h2>
+        <p id="crm-status">Загрузка...</p>
+      </article>
+
+      <article class="monitor-card">
+        <h2>Сайт и API</h2>
+        <p id="availability-status">Загрузка...</p>
+      </article>
+
+      <article class="monitor-card">
+        <h2>Frontend</h2>
+        <p id="frontend-status">Загрузка...</p>
+      </article>
+
+      <article class="monitor-card">
+        <h2>Backend</h2>
+        <p id="backend-status">Загрузка...</p>
+      </article>
+
+      <article class="monitor-card">
+        <h2>Ежедневные отчёты</h2>
+        <p id="reports-status">Загрузка...</p>
+      </article>
+
+      <article class="monitor-card">
+        <h2>Обнаружено проблем</h2>
+        <p id="problems-count">—</p>
+      </article>
+
+    </section>
+
+    <footer>
+      <p id="last-update">
+        Последняя проверка: —
+      </p>
+    </footer>
+
+  </main>
+
+  <script src="/admin/monitoring.js"></script>
+  <form action="/admin/logout" method="POST"
+      style="text-align:center; margin:30px 0;">
+  <button type="submit">
+    Выйти из панели администратора
+  </button>
+</form>
+</body>
+</html>

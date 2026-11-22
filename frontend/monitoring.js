@@ -64,18 +64,20 @@ function renderDashboard(data) {
 }
 
 
-const API_URL =
-  "https://aura-coffee-api-2lty.onrender.com/api/monitoring";
+const API_URL = "/api/monitoring/admin";
 
 async function loadMonitoring() {
-  try {
-    const response = await fetch(API_URL, {
-      cache: "no-store"
-    });
+  try {   
+const response = await fetch(API_URL, {
+  credentials: "same-origin",
+  cache: "no-store"
+});
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+if (response.status === 401) {
+  window.location.replace("/admin/login");
+  return;
+}
+
 
     const data = await response.json();
 
