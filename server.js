@@ -5,7 +5,15 @@ const path=require('path');
 const app=express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-const allowedOrigin = 'https://aladick9454-bot.github.io';
+
+const allowedOrigins = [
+  'https://aladick9454-bot.github.io',
+  'http://127.0.0.1:5500',
+  'http://localhost:5500',
+  'http://127.0.0.1:5501',
+  'http://localhost:5501'
+];
+
 
 
 app.get('/health', (req, res) => {
@@ -18,8 +26,35 @@ app.get('/health', (req, res) => {
 });
 
 
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader(
+      'Access-Control-Allow-Origin',
+      origin
+    );
+  }
+
+  res.setHeader('Vary', 'Origin');
+
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, OPTIONS'
+  );
+
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type'
+  );
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -29,7 +64,6 @@ app.use((req, res, next) => {
   }
 
   next();
-});
 app.use(express.json({limit:'12kb'}));
 app.use(express.static(path.join(__dirname),{index:'index.html',dotfiles:'deny',extensions:false}));
 const requests=new Map();
