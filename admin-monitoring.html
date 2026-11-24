@@ -72,6 +72,147 @@
       </p>
     </footer>
 
+<section class="analytics-section">
+
+  <div class="analytics-header">
+    <div>
+      <h2>Аналитика мониторинга</h2>
+      <p>История состояния системы</p>
+    </div>
+
+    <div class="analytics-periods">
+
+      <button
+        type="button"
+        class="period-btn active"
+        data-period="24h"
+        aria-pressed="true">
+        24 часа
+      </button>
+
+      <button
+        type="button"
+        class="period-btn"
+        data-period="7d"
+        aria-pressed="false">
+        7 дней
+      </button>
+
+      <button
+        type="button"
+        class="period-btn"
+        data-period="30d"
+        aria-pressed="false">
+        30 дней
+      </button>
+
+    </div>
+  </div>
+
+  <div
+    id="analytics-error"
+    class="analytics-error"
+    role="status"
+    hidden>
+    Не удалось загрузить аналитику.
+  </div>
+
+  <div class="analytics-grid">
+
+    <article class="analytics-card">
+      <span>Всего проверок</span>
+      <strong id="analytics-total">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Успешные проверки</span>
+      <strong
+        id="analytics-healthy"
+        class="analytics-green">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Предупреждения</span>
+      <strong
+        id="analytics-warning"
+        class="analytics-yellow">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Критические ошибки</span>
+      <strong
+        id="analytics-critical"
+        class="analytics-red">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Неизвестное состояние</span>
+      <strong
+        id="analytics-unknown"
+        class="analytics-gray">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Доля успешных проверок</span>
+      <strong id="analytics-percent">—</strong>
+    </article>
+
+  </div>
+
+  <div class="analytics-distribution">
+
+    <h3>Распределение результатов</h3>
+
+    <div class="analytics-bar">
+
+      <div
+        id="bar-healthy"
+        class="bar-healthy">
+      </div>
+
+      <div
+        id="bar-warning"
+        class="bar-warning">
+      </div>
+
+      <div
+        id="bar-critical"
+        class="bar-critical">
+      </div>
+
+      <div
+        id="bar-unknown"
+        class="bar-unknown">
+      </div>
+
+    </div>
+
+    <div class="analytics-legend">
+      <span class="analytics-green">
+        ● Успешные
+      </span>
+
+      <span class="analytics-yellow">
+        ● Предупреждения
+      </span>
+
+      <span class="analytics-red">
+        ● Критические
+      </span>
+
+      <span class="analytics-gray">
+        ● Неизвестные
+      </span>
+    </div>
+
+  </div>
+
+  <p id="analytics-updated">
+    Аналитика ещё не загружена
+  </p>
+
+</section>
+
   </main>
 
   <script src="/admin/monitoring.js"></script>
