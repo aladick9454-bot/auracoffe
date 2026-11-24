@@ -84,6 +84,37 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+app.get('/ready', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+
+  try {
+    await pool.query({
+      text: 'SELECT 1',
+      query_timeout: 5000
+    });
+
+    return res.status(200).json({
+      status: 'ready',
+      database: 'healthy',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(
+      'Readiness check failed:',
+      error.code || error.message
+    );
+
+    return res.status(503).json({
+      status: 'not_ready',
+      database: 'unavailable',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+
 // Настройка CORS
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -390,6 +421,14 @@ app.post('/api/monitoring/ingest', async (req, res) => {
 
   const data = req.body;
 
+  const checkedAtMs = Date.parse(data?.checked_at);
+
+  const MAX_FUTURE_OFFSET_MS = 60 * 1000;
+
+const validTimestamp =
+  Number.isFinite(checkedAtMs) &&
+  checkedAtMs <= Date.now() + MAX_FUTURE_OFFSET_MS;
+
   const validStatuses = [
     'healthy',
     'warning',
@@ -409,7 +448,7 @@ app.post('/api/monitoring/ingest', async (req, res) => {
     data &&
     typeof data === 'object' &&
     typeof data.checked_at === 'string' &&
-    Number.isFinite(Date.parse(data.checked_at)) &&
+    validTimestamp &&
     validStatuses.includes(data.overall_status) &&
     Number.isInteger(data.problems_count) &&
     data.problems_count >= 0 &&
@@ -461,6 +500,34 @@ async function getLatestMonitoringSnapshot() {
 
   return result.rows[0] || null;
 }
+
+
+async function cleanupMonitoringHistory() {
+  try {
+    const result = await pool.query(`
+      DELETE FROM monitoring_snapshots
+      WHERE checked_at < NOW() - INTERVAL '90 days'
+    `);
+
+    console.log(
+      'Monitoring cleanup: deleted',
+      result.rowCount,
+      'old records'
+    );
+
+  } catch (error) {
+    console.error(
+      'Monitoring cleanup failed:',
+      error.code || error.message
+    );
+  }
+}
+
+setInterval(
+  cleanupMonitoringHistory,
+  24 * 60 * 60 * 1000
+).unref();
+
 
 // Серверные сессии администратора
 const adminSessions = new Map();
