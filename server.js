@@ -502,6 +502,77 @@ async function getLatestMonitoringSnapshot() {
 }
 
 
+async function getMonitoringAnalytics(hours) {
+  const query = `
+    SELECT
+      COUNT(*)::integer AS total_checks,
+
+      COUNT(*) FILTER (
+        WHERE overall_status = 'healthy'
+      )::integer AS healthy_checks,
+
+      COUNT(*) FILTER (
+        WHERE overall_status = 'warning'
+      )::integer AS warning_checks,
+
+      COUNT(*) FILTER (
+        WHERE overall_status = 'critical'
+      )::integer AS critical_checks,
+
+      COUNT(*) FILTER (
+        WHERE overall_status = 'unknown'
+      )::integer AS unknown_checks,
+
+      ROUND(
+        100.0 * COUNT(*) FILTER (
+          WHERE overall_status = 'healthy'
+        ) / NULLIF(COUNT(*), 0),
+        2
+      ) AS healthy_percent,
+
+      MIN(checked_at) AS first_check,
+
+      MAX(checked_at) AS last_check
+
+    FROM monitoring_snapshots
+
+    WHERE checked_at >=
+      NOW() - ($1::integer * INTERVAL '1 hour')
+
+      AND checked_at <= NOW()
+  `;
+
+  const result = await pool.query(
+    query,
+    [hours]
+  );
+
+  const row = result.rows[0];
+
+  return {
+    period_hours: hours,
+
+    total_checks: row.total_checks,
+
+    healthy_checks: row.healthy_checks,
+
+    warning_checks: row.warning_checks,
+
+    critical_checks: row.critical_checks,
+
+    unknown_checks: row.unknown_checks,
+
+    healthy_percent:
+      row.healthy_percent === null
+        ? null
+        : Number(row.healthy_percent),
+
+    first_check: row.first_check,
+
+    last_check: row.last_check
+  };
+}
+
 async function cleanupMonitoringHistory() {
   try {
     const result = await pool.query(`
@@ -853,6 +924,62 @@ app.get(
     }
   }
 );
+
+
+app.get(
+  '/api/monitoring/analytics',
+  requireAdmin,
+  async (req, res) => {
+    res.setHeader(
+      'Cache-Control',
+      'no-store'
+    );
+
+    const periods = {
+      '24h': 24,
+      '7d': 168,
+      '30d': 720
+    };
+
+    const period = req.query.period ?? '24h';
+
+    if (
+      typeof period !== 'string' ||
+      !Object.hasOwn(periods, period)
+    ) {
+      return res.status(400).json({
+        error: 'Invalid period',
+        allowed: ['24h', '7d', '30d']
+      });
+    }
+
+    const hours = periods[period];
+
+    try {
+      const analytics =
+        await getMonitoringAnalytics(hours);
+
+      return res.json({
+        ok: true,
+        period,
+        generated_at: new Date().toISOString(),
+        analytics
+      });
+
+    } catch (error) {
+      console.error(
+        'Monitoring analytics error:',
+        error.code || error.message
+      );
+
+      return res.status(503).json({
+        ok: false,
+        error: 'Analytics unavailable'
+      });
+    }
+  }
+);
+
 
 // Выход из административной панели
 app.post('/admin/logout', (req, res) => {
