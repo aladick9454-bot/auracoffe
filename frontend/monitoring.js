@@ -66,6 +66,32 @@ function renderDashboard(data) {
 
 const API_URL = "/api/monitoring/admin";
 
+
+function updateFreshnessWarning(freshness) {
+  const warning = document.getElementById(
+    "freshness-warning"
+  );
+
+  if (!warning) return;
+
+  const messages = {
+    stale: "Данные мониторинга устарели. Текущее состояние системы неизвестно.",
+    missing: "Данные мониторинга отсутствуют.",
+    invalid: "Ошибка времени последней проверки.",
+    unavailable: "Не удалось получить данные мониторинга."
+  };
+
+  if (freshness === "fresh") {
+    warning.hidden = true;
+    return;
+  }
+
+  warning.textContent =
+    messages[freshness] || "Состояние неизвестно.";
+
+  warning.hidden = false;
+}
+
 async function loadMonitoring() {
   try {   
 const response = await fetch(API_URL, {
@@ -78,8 +104,29 @@ if (response.status === 401) {
   return;
 }
 
+if (!response.ok) {
+  throw new Error(`HTTP ${response.status}`);
+}
 
     const data = await response.json();
+
+const freshness = getMonitoringFreshness(
+  data.checked_at
+);
+
+updateFreshnessWarning(freshness);
+
+if (freshness !== "fresh") {
+  data.overall_status = "unknown";
+  data.problems_count = "—";
+
+  for (const component of Object.values(
+    data.components || {}
+  )) {
+    component.status = "unknown";
+  }
+}
+
 
     renderDashboard(data);
 
@@ -93,7 +140,35 @@ if (response.status === 401) {
 
     status.textContent = "Нет соединения";
     status.className = "status unknown";
+    updateFreshnessWarning("unavailable");
   }
+}
+
+
+const MAX_DATA_AGE_MS = 45 * 60 * 1000;
+
+function getMonitoringFreshness(checkedAt) {
+  if (!checkedAt) {
+    return "missing";
+  }
+
+  const timestamp = new Date(checkedAt).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "invalid";
+  }
+
+  const age = Date.now() - timestamp;
+
+  if (age < 0) {
+    return "invalid";
+  }
+
+  if (age > MAX_DATA_AGE_MS) {
+    return "stale";
+  }
+
+  return "fresh";
 }
 
 loadMonitoring();

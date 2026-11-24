@@ -98,3 +98,24 @@ footer {
     flex-direction: column;
   }
 }
+
+
+.freshness-warning {
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  color: #fbbf24;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.freshness-warning[hidden] {
+  display: none;
+}
+
+.monitoring-stale {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
