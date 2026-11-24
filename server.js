@@ -1,12 +1,66 @@
-
 'use strict';
 
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 5,
+  connectionTimeoutMillis: 15000,
+  idleTimeoutMillis: 30000
+});
+
+pool.on('error', (error) => {
+  console.error('PostgreSQL pool error:', error.code);
+});
+
+// Проверка подключения PostgreSQL
+async function checkDatabaseConnection() {
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is missing');
+    }
+
+    await pool.query('SELECT 1');
+
+    console.log('PostgreSQL connected successfully');
+  } catch (error) {
+    console.error(
+      'PostgreSQL connection failed:',
+      error.code || error.message
+    );
+  }
+}
+
+checkDatabaseConnection();
+
+// Сохранение мониторинга в PostgreSQL
+async function saveMonitoringSnapshot(data) {
+  const query = `
+    INSERT INTO monitoring_snapshots (
+      checked_at,
+      overall_status,
+      problems_count,
+      components
+    )
+    VALUES ($1, $2, $3, $4::jsonb)
+    ON CONFLICT (checked_at) DO NOTHING
+  `;
+
+  const values = [
+    data.checked_at,
+    data.overall_status,
+    data.problems_count,
+    JSON.stringify(data.components)
+  ];
+
+  await pool.query(query, values);
+}
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -63,10 +117,12 @@ app.use((req, res, next) => {
 // Настройка Express
 app.use(express.json({ limit: '12kb' }));
 
-app.use(express.urlencoded({ extended: false, limit: '2kb' }));
+app.use(express.urlencoded({
+  extended: false,
+  limit: '2kb'
+}));
 
-// Запрещаем прямой доступ к файлам админ-панели
-// через существующий express.static.
+// Запрещаем прямой доступ к защищённым файлам
 app.use((req, res, next) => {
   const pathname = req.path.toLowerCase();
 
@@ -94,6 +150,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// Статические файлы
 app.use(
   express.static(path.join(__dirname), {
     index: 'index.html',
@@ -271,8 +328,12 @@ app.post('/api/booking', async (req, res) => {
     }
 
     res.json({ ok: true });
+
   } catch (error) {
-    console.error('Booking delivery error:', error.message);
+    console.error(
+      'Booking delivery error:',
+      error.message
+    );
 
     res.status(502).json({
       error: 'Не удалось доставить запрос. Попробуйте позже.'
@@ -291,8 +352,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// API мониторинга — пока тестовые данные
-
+// Публичный API мониторинга закрыт
 app.get('/api/monitoring', (_req, res) => {
   res.set('Cache-Control', 'no-store');
 
@@ -301,20 +361,15 @@ app.get('/api/monitoring', (_req, res) => {
   });
 });
 
-
-// Запуск сервера
 const port = Number(process.env.PORT) || 3000;
 
-
-let latestMonitoring = null;
-
-app.post('/api/monitoring/ingest', (req, res) => {
+// Приём данных мониторинга из n8n
+app.post('/api/monitoring/ingest', async (req, res) => {
   const expected =
     process.env.MONITORING_INGEST_SECRET;
 
   const provided =
     req.get('x-monitoring-secret') || '';
-
 
   if (!expected || !provided) {
     return res.sendStatus(403);
@@ -371,24 +426,43 @@ app.post('/api/monitoring/ingest', (req, res) => {
     });
   }
 
-  latestMonitoring = {
-    checked_at: data.checked_at,
-    overall_status: data.overall_status,
-    problems_count: data.problems_count,
-    components: Object.fromEntries(
-      componentKeys.map(key => [
-        key,
-        {
-          status: data.components[key].status
-        }
-      ])
-    )
-  };
+  try {
+    await saveMonitoringSnapshot(data);
 
-  res.json({ ok: true });
+    return res.json({
+      ok: true
+    });
+
+  } catch (error) {
+    console.error(
+      'Monitoring save error:',
+      error.code || error.message
+    );
+
+    return res.status(503).json({
+      ok: false,
+      error: 'Database unavailable'
+    });
+  }
 });
 
+// Получение последней проверки из PostgreSQL
+async function getLatestMonitoringSnapshot() {
+  const result = await pool.query(`
+    SELECT
+      checked_at,
+      overall_status,
+      problems_count,
+      components
+    FROM monitoring_snapshots
+    ORDER BY checked_at DESC
+    LIMIT 1
+  `);
 
+  return result.rows[0] || null;
+}
+
+// Серверные сессии администратора
 const adminSessions = new Map();
 const loginAttempts = new Map();
 
@@ -396,6 +470,7 @@ const SESSION_DURATION = 8 * 60 * 60 * 1000;
 const LOGIN_WINDOW = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 5;
 
+// Безопасное сравнение значений
 function constantTimeMatch(a, b) {
   const first = crypto.createHash('sha256')
     .update(String(a)).digest();
@@ -406,35 +481,44 @@ function constantTimeMatch(a, b) {
   return crypto.timingSafeEqual(first, second);
 }
 
+// Чтение cookies
 function parseCookies(req) {
   const result = {};
 
   for (const part of (req.headers.cookie || '').split(';')) {
     const index = part.indexOf('=');
+
     if (index < 0) continue;
 
     const key = part.slice(0, index).trim();
     const value = part.slice(index + 1).trim();
+
     result[key] = value;
   }
 
   return result;
 }
 
+// Проверка сессии администратора
 function getAdminSession(req) {
   const token = parseCookies(req).aura_admin;
+
   if (!token) return null;
 
   const secret = process.env.MONITORING_SESSION_SECRET;
+
   if (!secret) return null;
 
   const [id, signature] = token.split('.');
+
   if (!id || !signature) return null;
 
   const expected = crypto.createHmac('sha256', secret)
     .update(id).digest('hex');
 
-  if (!constantTimeMatch(signature, expected)) return null;
+  if (!constantTimeMatch(signature, expected)) {
+    return null;
+  }
 
   const session = adminSessions.get(id);
 
@@ -442,12 +526,14 @@ function getAdminSession(req) {
 
   if (session.expiresAt <= Date.now()) {
     adminSessions.delete(id);
+
     return null;
   }
 
   return { id, session };
 }
 
+// Middleware авторизации
 function requireAdmin(req, res, next) {
   res.set('Cache-Control', 'no-store');
 
@@ -460,6 +546,7 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Создание защищённой cookie
 function adminCookie(value, maxAgeSeconds) {
   return [
     `aura_admin=${value}`,
@@ -471,6 +558,7 @@ function adminCookie(value, maxAgeSeconds) {
   ].join('; ');
 }
 
+// HTML страницы входа
 function loginPage(message = '') {
   const notice = message
     ? '<p style="color:#f87171">Неверный пароль или слишком много попыток.</p>'
@@ -482,6 +570,7 @@ function loginPage(message = '') {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AURA COFFEE — Вход</title>
+
 <style>
 body {
   min-height: 100vh;
@@ -492,13 +581,18 @@ body {
   color: #fff;
   font-family: Arial, sans-serif;
 }
+
 main {
   width: min(360px, calc(100% - 40px));
   padding: 32px;
   border-radius: 16px;
   background: #1f2937;
 }
-h1 { color: #fbbf24; }
+
+h1 {
+  color: #fbbf24;
+}
+
 input, button {
   box-sizing: border-box;
   width: 100%;
@@ -506,6 +600,7 @@ input, button {
   margin-top: 12px;
   border-radius: 8px;
 }
+
 button {
   background: #fbbf24;
   border: 0;
@@ -513,19 +608,35 @@ button {
   cursor: pointer;
 }
 </style>
+
 </head>
 <body>
+
 <main>
-<h1>AURA COFFEE</h1>
-<p>Вход в центр мониторинга</p>
-${notice}
-<form method="POST" action="/admin/login">
-<label for="password">Пароль администратора</label>
-<input id="password" type="password"
- name="password" required autocomplete="current-password">
-<button type="submit">Войти</button>
-</form>
+  <h1>AURA COFFEE</h1>
+  <p>Вход в центр мониторинга</p>
+
+  ${notice}
+
+  <form method="POST" action="/admin/login">
+    <label for="password">
+      Пароль администратора
+    </label>
+
+    <input
+      id="password"
+      type="password"
+      name="password"
+      required
+      autocomplete="current-password"
+    >
+
+    <button type="submit">
+      Войти
+    </button>
+  </form>
 </main>
+
 </body>
 </html>`;
 }
@@ -542,11 +653,12 @@ app.get('/admin/login', (req, res) => {
   res.send(loginPage());
 });
 
-// Авторизация
+// Авторизация администратора
 app.post('/admin/login', (req, res) => {
   res.set('Cache-Control', 'no-store');
 
   const origin = req.get('origin');
+
   const expectedOrigin =
     `${req.protocol}://${req.get('host')}`;
 
@@ -554,37 +666,55 @@ app.post('/admin/login', (req, res) => {
     return res.sendStatus(403);
   }
 
-  const password = process.env.MONITORING_ADMIN_PASSWORD;
-  const sessionSecret = process.env.MONITORING_SESSION_SECRET;
+  const password =
+    process.env.MONITORING_ADMIN_PASSWORD;
+
+  const sessionSecret =
+    process.env.MONITORING_SESSION_SECRET;
 
   if (!password || !sessionSecret) {
-    return res.status(503).send('Admin login not configured');
+    return res.status(503).send(
+      'Admin login not configured'
+    );
   }
 
   const ip = req.ip || 'unknown';
   const now = Date.now();
   const entry = loginAttempts.get(ip);
 
-  const attempts = entry && now - entry.startedAt < LOGIN_WINDOW
-    ? entry
-    : { startedAt: now, count: 0 };
+  const attempts =
+    entry && now - entry.startedAt < LOGIN_WINDOW
+      ? entry
+      : { startedAt: now, count: 0 };
 
   if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
-    return res.status(429).send(loginPage('rate-limit'));
+    return res.status(429).send(
+      loginPage('rate-limit')
+    );
   }
 
-  if (!constantTimeMatch(req.body?.password ?? '', password)) {
+  if (!constantTimeMatch(
+    req.body?.password ?? '',
+    password
+  )) {
     attempts.count++;
+
     loginAttempts.set(ip, attempts);
 
-    return res.status(401).send(loginPage('invalid'));
+    return res.status(401).send(
+      loginPage('invalid')
+    );
   }
 
   loginAttempts.delete(ip);
 
-  const id = crypto.randomBytes(32).toString('hex');
-  const signature = crypto.createHmac('sha256', sessionSecret)
-    .update(id).digest('hex');
+  const id = crypto.randomBytes(32)
+    .toString('hex');
+
+  const signature = crypto
+    .createHmac('sha256', sessionSecret)
+    .update(id)
+    .digest('hex');
 
   adminSessions.set(id, {
     expiresAt: Date.now() + SESSION_DURATION
@@ -592,13 +722,16 @@ app.post('/admin/login', (req, res) => {
 
   res.setHeader(
     'Set-Cookie',
-    adminCookie(`${id}.${signature}`, SESSION_DURATION / 1000)
+    adminCookie(
+      `${id}.${signature}`,
+      SESSION_DURATION / 1000
+    )
   );
 
   return res.redirect(303, '/admin/monitoring');
 });
 
-// Закрытая страница мониторинга
+// Закрытая административная панель
 app.get('/admin/monitoring', (req, res) => {
   if (!getAdminSession(req)) {
     return res.redirect(303, '/admin/login');
@@ -606,10 +739,12 @@ app.get('/admin/monitoring', (req, res) => {
 
   res.set('Cache-Control', 'no-store');
 
-  res.sendFile(path.join(__dirname, 'admin-monitoring.html'));
+  res.sendFile(
+    path.join(__dirname, 'admin-monitoring.html')
+  );
 });
 
-// JS доступен только после входа //
+// Защищённый JavaScript административной панели
 app.get('/admin/monitoring.js', requireAdmin, (req, res) => {
   res.set('Cache-Control', 'no-store');
 
@@ -618,22 +753,44 @@ app.get('/admin/monitoring.js', requireAdmin, (req, res) => {
   );
 });
 
+// Защищённое чтение данных из PostgreSQL
+app.get(
+  '/api/monitoring/admin',
+  requireAdmin,
+  async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
 
+    try {
+      const data = await getLatestMonitoringSnapshot();
 
-// Защищённое чтение настоящих данных
-app.get('/api/monitoring/admin', requireAdmin, (req, res) => {
-  if (!latestMonitoring) {
-    return res.status(503).json({
-      error: 'Monitoring data not received yet'
-    });
+      if (!data) {
+        return res.json({
+          checked_at: null,
+          overall_status: 'unknown',
+          problems_count: 0,
+          components: {}
+        });
+      }
+
+      return res.json(data);
+
+    } catch (error) {
+      console.error(
+        'Monitoring read error:',
+        error.code || error.message
+      );
+
+      return res.status(503).json({
+        error: 'Database unavailable'
+      });
+    }
   }
+);
 
-  res.json(latestMonitoring);
-});
-
-// Выход
+// Выход из административной панели
 app.post('/admin/logout', (req, res) => {
   const origin = req.get('origin');
+
   const expectedOrigin =
     `${req.protocol}://${req.get('host')}`;
 
@@ -647,7 +804,11 @@ app.post('/admin/logout', (req, res) => {
     adminSessions.delete(current.id);
   }
 
-  res.setHeader('Set-Cookie', adminCookie('', 0));
+  res.setHeader(
+    'Set-Cookie',
+    adminCookie('', 0)
+  );
+
   res.redirect(303, '/admin/login');
 });
 
@@ -668,8 +829,7 @@ setInterval(() => {
   }
 }, 60000).unref();
 
-
-
+// Запуск сервера
 app.listen(port, () => {
   console.log(`AURA COFFEE: http://localhost:${port}`);
 });
