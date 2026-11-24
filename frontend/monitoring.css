@@ -364,3 +364,126 @@ footer {
     height: 250px;
   }
 }
+
+/* =========================
+   ADVANCED METRICS
+========================= */
+
+.metrics-section {
+  margin-top: 28px;
+}
+
+.metrics-section > h3 {
+  margin-bottom: 20px;
+}
+
+.metrics-components,
+.metrics-doughnut {
+  margin-top: 24px;
+  padding: 22px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+}
+
+.metrics-component {
+  margin-top: 20px;
+}
+
+.metrics-component-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.metrics-progress {
+  height: 9px;
+  background: #374151;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.metrics-progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+.doughnut-container {
+  position: relative;
+  height: 280px;
+  width: 100%;
+}
+
+#metrics-samples {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+@media (max-width: 550px) {
+  .metrics-components,
+  .metrics-doughnut {
+    padding: 14px;
+  }
+
+  .doughnut-container {
+    height: 240px;
+  }
+}
+
+.history-table-section {
+  margin-top: 24px;
+  padding: 22px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+}
+
+.history-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+#history-status-filter {
+  padding: 10px 14px;
+  color: #f9fafb;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}
+
+.history-table-scroll {
+  overflow-x: auto;
+}
+
+.monitoring-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.monitoring-history-table th,
+.monitoring-history-table td {
+  padding: 14px 10px;
+  text-align: left;
+  border-bottom: 1px solid #374151;
+}
+
+.monitoring-history-table th {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.monitoring-history-table tbody tr:hover {
+  background: #374151;
+}
+
+#history-table-count {
+  color: #9ca3af;
+  font-size: 13px;
+}

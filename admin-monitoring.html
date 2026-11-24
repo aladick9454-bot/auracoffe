@@ -207,6 +207,69 @@
 
   </div>
 
+<div class="metrics-section">
+
+  <h3>Расширенная аналитика</h3>
+
+  <p
+    id="metrics-message"
+    class="history-message"
+    role="status"
+    hidden>
+  </p>
+
+  <div class="analytics-grid">
+
+    <article class="analytics-card">
+      <span>Доступность сайта и API</span>
+      <strong id="metrics-availability">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Полнота мониторинга</span>
+      <strong id="metrics-coverage">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Ожидалось проверок</span>
+      <strong id="metrics-expected">—</strong>
+    </article>
+
+    <article class="analytics-card">
+      <span>Пропущено интервалов</span>
+      <strong
+        id="metrics-missed"
+        class="analytics-red">—</strong>
+    </article>
+
+  </div>
+
+  <p id="metrics-samples"></p>
+
+  <div class="metrics-components">
+
+    <h3>Стабильность компонентов</h3>
+
+    <div id="metrics-components-list"></div>
+
+  </div>
+
+  <div class="metrics-doughnut">
+
+    <h3>Распределение статусов</h3>
+
+    <div class="doughnut-container">
+      <canvas
+        id="monitoring-status-chart"
+        role="img"
+        aria-label="Распределение статусов проверок">
+      </canvas>
+    </div>
+
+  </div>
+
+</div>
+
 <div class="history-section">
 
   <h3>Динамика количества проблем</h3>
@@ -234,6 +297,66 @@
   </div>
 
 </div>
+
+<div class="history-table-section">
+
+  <div class="history-table-header">
+
+    <h3>История проверок</h3>
+
+    <select
+      id="history-status-filter"
+      aria-label="Фильтр статуса">
+
+      <option value="all">
+        Все статусы
+      </option>
+
+      <option value="healthy">
+        Успешные
+      </option>
+
+      <option value="warning">
+        Предупреждения
+      </option>
+
+      <option value="critical">
+        Критические
+      </option>
+
+      <option value="unknown">
+        Неизвестные
+      </option>
+
+    </select>
+
+  </div>
+
+  <p id="history-table-count">
+    История ещё не загружена
+  </p>
+
+  <div class="history-table-scroll">
+
+    <table class="monitoring-history-table">
+
+      <thead>
+        <tr>
+          <th>Дата и время</th>
+          <th>Статус</th>
+          <th>Проблемы</th>
+        </tr>
+      </thead>
+
+      <tbody id="history-table-body">
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
+
 
   <p id="analytics-updated">
     Аналитика ещё не загружена

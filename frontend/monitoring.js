@@ -290,6 +290,7 @@ function renderAnalytics(data) {
   );
 
   renderAnalyticsBar(data);
+  renderStatusChart(data);
 }
 
 // Диаграмма распределения
@@ -417,6 +418,7 @@ async function loadAnalytics() {
       analyticsController = null;
     }
   }
+  clearStatusChart();
 }
 
 // Переключение периода аналитики
@@ -754,6 +756,7 @@ async function loadMonitoringHistory() {
     }
 
     renderHistoryChart(result.history);
+    updateHistoryTable(result.history);
 
     console.log(
       "Monitoring history loaded:",
@@ -771,6 +774,9 @@ async function loadMonitoringHistory() {
     );
 
     clearHistoryChart();
+    resetHistoryTable(
+  "История мониторинга недоступна"
+);
 
     showHistoryMessage(
       "Не удалось загрузить историю мониторинга."
@@ -788,9 +794,459 @@ async function loadMonitoringHistory() {
 // Первоначальная загрузка истории
 loadMonitoringHistory();
 
+resetHistoryTable(
+  "Загрузка истории..."
+);
+
+resetMetrics();
+
+showMetricsMessage(
+  "Загрузка показателей..."
+);
+
+loadMonitoringMetrics();
+
 // Автоматическое обновление истории
 setInterval(() => {
   if (!historyController) {
     loadMonitoringHistory();
+  }
+}, 60 * 1000);
+
+
+// =========================
+// ADVANCED MONITORING METRICS
+// =========================
+
+const METRICS_API_URL =
+  "/api/monitoring/metrics";
+
+let metricsController = null;
+let metricsRequestId = 0;
+
+const metricsComponentNames = {
+  system_health: "CRM",
+  availability: "Сайт и API",
+  performance_frontend: "Frontend",
+  performance_backend: "Backend",
+  daily_reports: "Ежедневные отчёты"
+};
+
+function formatMetricsPercent(value) {
+  return Number.isFinite(value)
+    ? value.toFixed(2) + "%"
+    : "—";
+}
+
+function showMetricsMessage(message = "") {
+  const element = document.getElementById(
+    "metrics-message"
+  );
+
+  if (!element) return;
+
+  element.textContent = message;
+  element.hidden = !message;
+}
+
+function renderMetrics(data) {
+  setAnalyticsText(
+    "metrics-availability",
+    formatMetricsPercent(
+      data.availability_percent
+    )
+  );
+
+  setAnalyticsText(
+    "metrics-coverage",
+    formatMetricsPercent(
+      data.coverage_percent
+    )
+  );
+
+  setAnalyticsText(
+    "metrics-expected",
+    data.expected_checks
+  );
+
+  setAnalyticsText(
+    "metrics-missed",
+    data.missed_checks
+  );
+
+  setAnalyticsText(
+    "metrics-samples",
+    "Известных проверок доступности: " +
+      data.availability_known_checks +
+      " из " + data.total_checks
+  );
+
+  renderComponentMetrics(data.components);
+}
+
+function renderComponentMetrics(components) {
+  const container = document.getElementById(
+    "metrics-components-list"
+  );
+
+  if (!container) return;
+
+  container.replaceChildren();
+
+  for (const [key, name] of Object.entries(
+    metricsComponentNames
+  )) {
+    const component = components.find(
+      item => item.name === key
+    );
+
+    const percent =
+      component?.healthy_percent ?? null;
+
+    const wrapper =
+      document.createElement("div");
+
+    wrapper.className = "metrics-component";
+
+    const header =
+      document.createElement("div");
+
+    header.className =
+      "metrics-component-header";
+
+    const label =
+      document.createElement("span");
+
+    label.textContent = name;
+
+    const value =
+      document.createElement("strong");
+
+    value.textContent =
+      formatMetricsPercent(percent);
+
+    header.append(label, value);
+
+    const progress =
+      document.createElement("div");
+
+    progress.className = "metrics-progress";
+
+    const fill =
+      document.createElement("div");
+
+    fill.className =
+      "metrics-progress-fill";
+
+    fill.style.width =
+      Math.min(100, Math.max(0, percent ?? 0))
+      + "%";
+
+    fill.style.background =
+      percent === null
+        ? "#94a3b8"
+        : percent >= 99
+          ? "#22c55e"
+          : percent >= 90
+            ? "#eab308"
+            : "#ef4444";
+
+    progress.append(fill);
+
+    wrapper.append(header, progress);
+
+    container.append(wrapper);
+  }
+}
+
+function resetMetrics() {
+  [
+    "metrics-availability",
+    "metrics-coverage",
+    "metrics-expected",
+    "metrics-missed"
+  ].forEach(id => {
+    setAnalyticsText(id, "—");
+  });
+
+  setAnalyticsText("metrics-samples", "");
+
+  renderComponentMetrics([]);
+}
+
+async function loadMonitoringMetrics() {
+  const requestId = ++metricsRequestId;
+  const period = selectedAnalyticsPeriod;
+
+  if (metricsController) {
+    metricsController.abort();
+  }
+
+  const controller = new AbortController();
+
+  metricsController = controller;
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    15000
+  );
+
+  try {
+    const response = await fetch(
+      `${METRICS_API_URL}?period=${encodeURIComponent(period)}`,
+      {
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: controller.signal
+      }
+    );
+
+    if (requestId !== metricsRequestId) return;
+
+    if (response.status === 401) {
+      window.location.replace("/admin/login");
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (requestId !== metricsRequestId) return;
+
+    if (
+      !result.ok ||
+      result.period !== period ||
+      !result.metrics ||
+      !Array.isArray(result.metrics.components)
+    ) {
+      throw new Error("Invalid metrics response");
+    }
+
+    renderMetrics(result.metrics);
+
+    showMetricsMessage();
+
+  } catch (error) {
+    if (requestId !== metricsRequestId) return;
+
+    console.error("Metrics error:", error);
+
+    resetMetrics();
+
+    showMetricsMessage(
+      "Не удалось загрузить показатели."
+    );
+
+  } finally {
+    clearTimeout(timeout);
+
+    if (requestId === metricsRequestId) {
+      metricsController = null;
+    }
+  }
+}
+
+let monitoringStatusChart = null;
+
+function clearStatusChart() {
+  if (monitoringStatusChart) {
+    monitoringStatusChart.destroy();
+    monitoringStatusChart = null;
+  }
+}
+
+function renderStatusChart(data) {
+  const canvas = document.getElementById(
+    "monitoring-status-chart"
+  );
+
+  if (!canvas) return;
+
+  clearStatusChart();
+
+  if (
+    typeof Chart === "undefined" ||
+    !data.total_checks
+  ) {
+    return;
+  }
+
+  monitoringStatusChart = new Chart(
+    canvas,
+    {
+      type: "doughnut",
+
+      data: {
+        labels: [
+          "Успешные",
+          "Предупреждения",
+          "Критические",
+          "Неизвестные"
+        ],
+
+        datasets: [{
+          data: [
+            data.healthy_checks,
+            data.warning_checks,
+            data.critical_checks,
+            data.unknown_checks
+          ],
+
+          backgroundColor: [
+            "#22c55e",
+            "#eab308",
+            "#ef4444",
+            "#94a3b8"
+          ],
+
+          borderWidth: 0,
+          hoverOffset: 6
+        }]
+      },
+
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        cutout: "70%",
+
+        plugins: {
+          legend: {
+            position: "bottom",
+
+            labels: {
+              color: "#d1d5db",
+              padding: 16
+            }
+          }
+        }
+      }
+    }
+  );
+}
+
+
+// =========================
+// MONITORING HISTORY TABLE
+// =========================
+
+let monitoringHistoryRows = [];
+
+const HISTORY_TABLE_LIMIT = 50;
+
+function renderHistoryTable() {
+  const tbody = document.getElementById(
+    "history-table-body"
+  );
+
+  const filter = document.getElementById(
+    "history-status-filter"
+  );
+
+  if (!tbody) return;
+
+  const selectedStatus =
+    filter?.value || "all";
+
+  const filtered = monitoringHistoryRows
+    .filter(item =>
+      selectedStatus === "all" ||
+      item.overall_status === selectedStatus
+    )
+    .slice()
+    .reverse();
+
+  const visibleRows = filtered.slice(
+    0,
+    HISTORY_TABLE_LIMIT
+  );
+
+  tbody.replaceChildren();
+
+  for (const item of visibleRows) {
+    const row =
+      document.createElement("tr");
+
+    const dateCell =
+      document.createElement("td");
+
+    dateCell.textContent =
+      new Date(item.checked_at)
+        .toLocaleString("ru-RU");
+
+    const statusCell =
+      document.createElement("td");
+
+    statusCell.textContent =
+      statusLabels[item.overall_status]
+      || "Нет данных";
+
+    statusCell.style.color =
+      historyStatusColors[item.overall_status]
+      || historyStatusColors.unknown;
+
+    const problemsCell =
+      document.createElement("td");
+
+    problemsCell.textContent =
+      item.problems_count;
+
+    row.append(
+      dateCell,
+      statusCell,
+      problemsCell
+    );
+
+    tbody.append(row);
+  }
+
+  setAnalyticsText(
+    "history-table-count",
+    filtered.length
+      ? `Показано ${visibleRows.length} из ${filtered.length} проверок`
+      : "Нет проверок по выбранному фильтру"
+  );
+}
+
+function updateHistoryTable(history) {
+  monitoringHistoryRows = history;
+
+  renderHistoryTable();
+}
+
+function resetHistoryTable(message) {
+  monitoringHistoryRows = [];
+
+  const tbody = document.getElementById(
+    "history-table-body"
+  );
+
+  if (tbody) {
+    tbody.replaceChildren();
+  }
+
+  setAnalyticsText(
+    "history-table-count",
+    message
+  );
+}
+
+document.getElementById(
+  "history-status-filter"
+)?.addEventListener(
+  "change",
+  renderHistoryTable
+);
+
+// Первоначальная загрузка показателей
+loadMonitoringMetrics();
+
+// Автоматическое обновление показателей
+setInterval(() => {
+  if (!metricsController) {
+    loadMonitoringMetrics();
   }
 }, 60 * 1000);
