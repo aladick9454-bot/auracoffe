@@ -465,6 +465,13 @@ function initializeAnalyticsPeriods() {
       );
 
       loadAnalytics();
+      clearHistoryChart();
+
+showHistoryMessage(
+  "Загрузка истории..."
+);
+
+loadMonitoringHistory();
     });
   });
 }
@@ -504,5 +511,286 @@ loadAnalytics();
 setInterval(() => {
   if (!analyticsController) {
     loadAnalytics();
+  }
+}, 60 * 1000);
+
+
+// =========================
+// MONITORING HISTORY
+// =========================
+
+const HISTORY_API_URL =
+  "/api/monitoring/history";
+
+let monitoringHistoryChart = null;
+
+let historyRequestId = 0;
+let historyController = null;
+
+const historyStatusColors = {
+  healthy: "#22c55e",
+  warning: "#eab308",
+  critical: "#ef4444",
+  unknown: "#94a3b8"
+};
+
+function showHistoryMessage(message = "") {
+  const element = document.getElementById(
+    "history-message"
+  );
+
+  if (!element) return;
+
+  element.textContent = message;
+  element.hidden = !message;
+}
+
+function clearHistoryChart() {
+  if (monitoringHistoryChart) {
+    monitoringHistoryChart.destroy();
+    monitoringHistoryChart = null;
+  }
+}
+
+function renderHistoryChart(history) {
+  const canvas = document.getElementById(
+    "monitoring-history-chart"
+  );
+
+  if (!canvas) return;
+
+  clearHistoryChart();
+
+  if (!history.length) {
+    showHistoryMessage(
+      "За выбранный период нет проверок."
+    );
+
+    return;
+  }
+
+  if (typeof Chart === "undefined") {
+    showHistoryMessage(
+      "Не удалось загрузить библиотеку графиков."
+    );
+
+    return;
+  }
+
+  showHistoryMessage();
+
+  const labels = history.map(item =>
+    new Date(item.checked_at)
+      .toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      })
+  );
+
+  const values = history.map(
+    item => item.problems_count
+  );
+
+  const colors = history.map(
+    item =>
+      historyStatusColors[item.overall_status]
+      || historyStatusColors.unknown
+  );
+
+  monitoringHistoryChart = new Chart(
+    canvas,
+    {
+      type: "line",
+
+      data: {
+        labels,
+
+        datasets: [{
+          label: "Количество проблем",
+          data: values,
+
+          borderColor: "#fbbf24",
+
+          backgroundColor:
+            "rgba(251, 191, 36, 0.08)",
+
+          pointBackgroundColor: colors,
+          pointBorderColor: colors,
+
+          pointRadius: 4,
+          pointHoverRadius: 7,
+
+          borderWidth: 2,
+          tension: 0,
+          fill: true
+        }]
+      },
+
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+
+        interaction: {
+          mode: "index",
+          intersect: false
+        },
+
+        plugins: {
+          legend: {
+            labels: {
+              color: "#d1d5db"
+            }
+          },
+
+          tooltip: {
+            callbacks: {
+              afterLabel(context) {
+                const item =
+                  history[context.dataIndex];
+
+                return "Статус: " + (
+                  statusLabels[
+                    item.overall_status
+                  ] || "Нет данных"
+                );
+              }
+            }
+          }
+        },
+
+        scales: {
+          x: {
+            ticks: {
+              color: "#9ca3af",
+              maxTicksLimit: 10
+            },
+
+            grid: {
+              color:
+                "rgba(156, 163, 175, 0.08)"
+            }
+          },
+
+          y: {
+            beginAtZero: true,
+
+            ticks: {
+              color: "#9ca3af",
+              precision: 0
+            },
+
+            grid: {
+              color:
+                "rgba(156, 163, 175, 0.12)"
+            }
+          }
+        }
+      }
+    }
+  );
+}
+
+
+async function loadMonitoringHistory() {
+  const requestId = ++historyRequestId;
+
+  const period = selectedAnalyticsPeriod;
+
+  if (historyController) {
+    historyController.abort();
+  }
+
+  const controller = new AbortController();
+
+  historyController = controller;
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    15000
+  );
+
+  try {
+    const response = await fetch(
+      `${HISTORY_API_URL}?period=${encodeURIComponent(
+        period
+      )}`,
+      {
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: controller.signal
+      }
+    );
+
+    if (requestId !== historyRequestId) {
+      return;
+    }
+
+    if (response.status === 401) {
+      window.location.replace("/admin/login");
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (requestId !== historyRequestId) {
+      return;
+    }
+
+    if (
+      !result.ok ||
+      result.period !== period ||
+      !Array.isArray(result.history)
+    ) {
+      throw new Error(
+        "Invalid history response"
+      );
+    }
+
+    renderHistoryChart(result.history);
+
+    console.log(
+      "Monitoring history loaded:",
+      result.total
+    );
+
+  } catch (error) {
+    if (requestId !== historyRequestId) {
+      return;
+    }
+
+    console.error(
+      "Monitoring history error:",
+      error
+    );
+
+    clearHistoryChart();
+
+    showHistoryMessage(
+      "Не удалось загрузить историю мониторинга."
+    );
+
+  } finally {
+    clearTimeout(timeout);
+
+    if (requestId === historyRequestId) {
+      historyController = null;
+    }
+  }
+}
+
+// Первоначальная загрузка истории
+loadMonitoringHistory();
+
+// Автоматическое обновление истории
+setInterval(() => {
+  if (!historyController) {
+    loadMonitoringHistory();
   }
 }, 60 * 1000);

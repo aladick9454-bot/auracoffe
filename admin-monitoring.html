@@ -207,6 +207,34 @@
 
   </div>
 
+<div class="history-section">
+
+  <h3>Динамика количества проблем</h3>
+
+  <p class="history-description">
+    История обнаруженных проблем
+    за выбранный период
+  </p>
+
+  <div
+    id="history-message"
+    class="history-message"
+    role="status"
+    hidden>
+  </div>
+
+  <div class="history-chart-container">
+
+    <canvas
+      id="monitoring-history-chart"
+      role="img"
+      aria-label="График количества проблем мониторинга">
+    </canvas>
+
+  </div>
+
+</div>
+
   <p id="analytics-updated">
     Аналитика ещё не загружена
   </p>
@@ -214,6 +242,7 @@
 </section>
 
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 
   <script src="/admin/monitoring.js"></script>
   <form action="/admin/logout" method="POST"
