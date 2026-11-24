@@ -1,8 +1,40 @@
 
+// ========================================
+// AURA COFFEE — MONITORING DASHBOARD
+// ========================================
+
+// ========================================
+// 1. КОНСТАНТЫ И ПЕРЕМЕННЫЕ
+// ========================================
+
 const API_URL = "/api/monitoring/admin";
+const ANALYTICS_API_URL = "/api/monitoring/analytics";
+const HISTORY_API_URL = "/api/monitoring/history";
+const METRICS_API_URL = "/api/monitoring/metrics";
 
 const MAX_DATA_AGE_MS = 45 * 60 * 1000;
 const MAX_FUTURE_OFFSET_MS = 60 * 1000;
+const REQUEST_TIMEOUT_MS = 15000;
+const REFRESH_INTERVAL_MS = 60 * 1000;
+const HISTORY_TABLE_LIMIT = 50;
+
+let monitoringLoading = false;
+
+let selectedAnalyticsPeriod = "24h";
+
+let analyticsRequestId = 0;
+let analyticsController = null;
+
+let historyRequestId = 0;
+let historyController = null;
+
+let metricsRequestId = 0;
+let metricsController = null;
+
+let monitoringHistoryChart = null;
+let monitoringStatusChart = null;
+
+let monitoringHistoryRows = [];
 
 const statusLabels = {
   healthy: "Работает",
@@ -19,7 +51,40 @@ const componentElements = {
   daily_reports: "reports-status"
 };
 
-// Обновление статуса карточки
+const historyStatusColors = {
+  healthy: "#22c55e",
+  warning: "#eab308",
+  critical: "#ef4444",
+  unknown: "#94a3b8"
+};
+
+const metricsComponentNames = {
+  system_health: "CRM",
+  availability: "Сайт и API",
+  performance_frontend: "Frontend",
+  performance_backend: "Backend",
+  daily_reports: "Ежедневные отчёты"
+};
+
+
+// ========================================
+// 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ========================================
+
+function setAnalyticsText(id, value) {
+  const element = document.getElementById(id);
+
+  if (element) {
+    element.textContent = value;
+  }
+}
+
+function formatMetricsPercent(value) {
+  return Number.isFinite(value)
+    ? value.toFixed(2) + "%"
+    : "—";
+}
+
 function updateStatus(elementId, status) {
   const element = document.getElementById(elementId);
 
@@ -37,7 +102,11 @@ function updateStatus(elementId, status) {
       : safeStatus;
 }
 
-// Проверка свежести данных
+
+// ========================================
+// 3. ПРОВЕРКА СВЕЖЕСТИ ДАННЫХ
+// ========================================
+
 function getMonitoringFreshness(checkedAt) {
   if (!checkedAt) {
     return "missing";
@@ -62,7 +131,6 @@ function getMonitoringFreshness(checkedAt) {
   return "fresh";
 }
 
-// Предупреждение о состоянии данных
 function updateFreshnessWarning(freshness) {
   const warning = document.getElementById(
     "freshness-warning"
@@ -95,7 +163,11 @@ function updateFreshnessWarning(freshness) {
   warning.hidden = false;
 }
 
-// Безопасное отображение панели
+
+// ========================================
+// 4. ОСНОВНОЙ МОНИТОРИНГ
+// ========================================
+
 function renderDashboard(data) {
   updateStatus(
     "overall-status",
@@ -140,7 +212,6 @@ function renderDashboard(data) {
   }
 }
 
-// Сброс всех статусов
 function resetMonitoringDashboard(checkedAt = null) {
   renderDashboard({
     checked_at: checkedAt,
@@ -150,10 +221,6 @@ function resetMonitoringDashboard(checkedAt = null) {
   });
 }
 
-// Защита от параллельных запросов
-let monitoringLoading = false;
-
-// Получение данных мониторинга
 async function loadMonitoring() {
   if (monitoringLoading) return;
 
@@ -163,7 +230,7 @@ async function loadMonitoring() {
 
   const timeout = setTimeout(
     () => controller.abort(),
-    15000
+    REQUEST_TIMEOUT_MS
   );
 
   try {
@@ -226,34 +293,11 @@ async function loadMonitoring() {
   }
 }
 
-// Первоначальная загрузка
-loadMonitoring();
 
-// Автоматическое обновление каждую минуту
-setInterval(loadMonitoring, 60 * 1000);
+// ========================================
+// 5. АНАЛИТИЧЕСКИЕ КАРТОЧКИ
+// ========================================
 
-// =========================
-// MONITORING ANALYTICS
-// =========================
-
-const ANALYTICS_API_URL =
-  "/api/monitoring/analytics";
-
-let selectedAnalyticsPeriod = "24h";
-
-let analyticsRequestId = 0;
-let analyticsController = null;
-
-// Безопасное обновление текста
-function setAnalyticsText(id, value) {
-  const element = document.getElementById(id);
-
-  if (element) {
-    element.textContent = value;
-  }
-}
-
-// Отображение статистики
 function renderAnalytics(data) {
   setAnalyticsText(
     "analytics-total",
@@ -280,20 +324,16 @@ function renderAnalytics(data) {
     data.unknown_checks
   );
 
-  const percent = data.healthy_percent;
-
   setAnalyticsText(
     "analytics-percent",
-    Number.isFinite(percent)
-      ? percent.toFixed(2) + "%"
-      : "—"
+    formatMetricsPercent(data.healthy_percent)
   );
 
   renderAnalyticsBar(data);
+
   renderStatusChart(data);
 }
 
-// Диаграмма распределения
 function renderAnalyticsBar(data) {
   const total = data.total_checks;
 
@@ -318,9 +358,35 @@ function renderAnalyticsBar(data) {
   }
 }
 
-// Получение аналитики с сервера
+function resetAnalytics() {
+  const ids = [
+    "analytics-total",
+    "analytics-healthy",
+    "analytics-warning",
+    "analytics-critical",
+    "analytics-unknown",
+    "analytics-percent"
+  ];
+
+  ids.forEach(id => {
+    setAnalyticsText(id, "—");
+  });
+
+  renderAnalyticsBar({
+    total_checks: 0,
+    healthy_checks: 0,
+    warning_checks: 0,
+    critical_checks: 0,
+    unknown_checks: 0
+  });
+
+  clearStatusChart();
+}
+
 async function loadAnalytics() {
   const requestId = ++analyticsRequestId;
+
+  const period = selectedAnalyticsPeriod;
 
   if (analyticsController) {
     analyticsController.abort();
@@ -332,7 +398,7 @@ async function loadAnalytics() {
 
   const timeout = setTimeout(
     () => controller.abort(),
-    15000
+    REQUEST_TIMEOUT_MS
   );
 
   const errorElement = document.getElementById(
@@ -341,9 +407,7 @@ async function loadAnalytics() {
 
   try {
     const response = await fetch(
-      `${ANALYTICS_API_URL}?period=${encodeURIComponent(
-        selectedAnalyticsPeriod
-      )}`,
+      `${ANALYTICS_API_URL}?period=${encodeURIComponent(period)}`,
       {
         credentials: "same-origin",
         cache: "no-store",
@@ -370,7 +434,12 @@ async function loadAnalytics() {
       return;
     }
 
-    if (!result.ok || !result.analytics) {
+    if (
+      !result ||
+      !result.ok ||
+      result.period !== period ||
+      !result.analytics
+    ) {
       throw new Error("Invalid analytics response");
     }
 
@@ -418,123 +487,100 @@ async function loadAnalytics() {
       analyticsController = null;
     }
   }
-  clearStatusChart();
 }
 
-// Переключение периода аналитики
-function initializeAnalyticsPeriods() {
-  const buttons = document.querySelectorAll(
-    ".analytics-periods .period-btn"
+
+// ========================================
+// 6. КОЛЬЦЕВАЯ ДИАГРАММА
+// ========================================
+
+function clearStatusChart() {
+  if (monitoringStatusChart) {
+    monitoringStatusChart.destroy();
+
+    monitoringStatusChart = null;
+  }
+}
+
+function renderStatusChart(data) {
+  const canvas = document.getElementById(
+    "monitoring-status-chart"
   );
 
-  buttons.forEach(button => {
-    button.addEventListener("click", () => {
-      const period = button.dataset.period;
+  if (!canvas) return;
 
-      if (!["24h", "7d", "30d"].includes(period)) {
-        return;
-      }
+  clearStatusChart();
 
-      if (period === selectedAnalyticsPeriod) {
-        return;
-      }
-
-      selectedAnalyticsPeriod = period;
-
-      buttons.forEach(item => {
-        const active = item === button;
-
-        item.classList.toggle("active", active);
-
-        item.setAttribute(
-          "aria-pressed",
-          String(active)
-        );
-      });
-
-      resetAnalytics();
-
-      const errorElement =
-        document.getElementById("analytics-error");
-
-      if (errorElement) {
-        errorElement.hidden = true;
-      }
-
-      setAnalyticsText(
-        "analytics-updated",
-        "Загрузка аналитики..."
-      );
-
-      loadAnalytics();
-      clearHistoryChart();
-
-showHistoryMessage(
-  "Загрузка истории..."
-);
-
-loadMonitoringHistory();
-    });
-  });
-}
-
-
-// Сброс аналитики при ошибке
-function resetAnalytics() {
-  const ids = [
-    "analytics-total",
-    "analytics-healthy",
-    "analytics-warning",
-    "analytics-critical",
-    "analytics-unknown",
-    "analytics-percent"
-  ];
-
-  ids.forEach(id => {
-    setAnalyticsText(id, "—");
-  });
-
-  renderAnalyticsBar({
-    total_checks: 0,
-    healthy_checks: 0,
-    warning_checks: 0,
-    critical_checks: 0,
-    unknown_checks: 0
-  });
-}
-
-// Запуск аналитики
-initializeAnalyticsPeriods();
-
-loadAnalytics();
-
-// Автоматическое обновление
-// каждые 60 секунд
-setInterval(() => {
-  if (!analyticsController) {
-    loadAnalytics();
+  if (
+    typeof Chart === "undefined" ||
+    !data.total_checks
+  ) {
+    return;
   }
-}, 60 * 1000);
+
+  monitoringStatusChart = new Chart(
+    canvas,
+    {
+      type: "doughnut",
+
+      data: {
+        labels: [
+          "Успешные",
+          "Предупреждения",
+          "Критические",
+          "Неизвестные"
+        ],
+
+        datasets: [{
+          data: [
+            data.healthy_checks,
+            data.warning_checks,
+            data.critical_checks,
+            data.unknown_checks
+          ],
+
+          backgroundColor: [
+            "#22c55e",
+            "#eab308",
+            "#ef4444",
+            "#94a3b8"
+          ],
+
+          borderWidth: 0,
+
+          hoverOffset: 6
+        }]
+      },
+
+      options: {
+        responsive: true,
+
+        maintainAspectRatio: false,
+
+        animation: false,
+
+        cutout: "70%",
+
+        plugins: {
+          legend: {
+            position: "bottom",
+
+            labels: {
+              color: "#d1d5db",
+
+              padding: 16
+            }
+          }
+        }
+      }
+    }
+  );
+}
 
 
-// =========================
-// MONITORING HISTORY
-// =========================
-
-const HISTORY_API_URL =
-  "/api/monitoring/history";
-
-let monitoringHistoryChart = null;
-
-let historyRequestId = 0;
-let historyController = null;
-
-const historyStatusColors = {
-  healthy: "#22c55e",
-  warning: "#eab308",
-  critical: "#ef4444",
-  unknown: "#94a3b8"
-};
+// ========================================
+// 7. ИСТОРИЧЕСКИЙ ГРАФИК
+// ========================================
 
 function showHistoryMessage(message = "") {
   const element = document.getElementById(
@@ -544,12 +590,14 @@ function showHistoryMessage(message = "") {
   if (!element) return;
 
   element.textContent = message;
+
   element.hidden = !message;
 }
 
 function clearHistoryChart() {
   if (monitoringHistoryChart) {
     monitoringHistoryChart.destroy();
+
     monitoringHistoryChart = null;
   }
 }
@@ -611,6 +659,7 @@ function renderHistoryChart(history) {
 
         datasets: [{
           label: "Количество проблем",
+
           data: values,
 
           borderColor: "#fbbf24",
@@ -619,24 +668,31 @@ function renderHistoryChart(history) {
             "rgba(251, 191, 36, 0.08)",
 
           pointBackgroundColor: colors,
+
           pointBorderColor: colors,
 
           pointRadius: 4,
+
           pointHoverRadius: 7,
 
           borderWidth: 2,
+
           tension: 0,
+
           fill: true
         }]
       },
 
       options: {
         responsive: true,
+
         maintainAspectRatio: false,
+
         animation: false,
 
         interaction: {
           mode: "index",
+
           intersect: false
         },
 
@@ -667,6 +723,7 @@ function renderHistoryChart(history) {
           x: {
             ticks: {
               color: "#9ca3af",
+
               maxTicksLimit: 10
             },
 
@@ -681,6 +738,7 @@ function renderHistoryChart(history) {
 
             ticks: {
               color: "#9ca3af",
+
               precision: 0
             },
 
@@ -695,6 +753,10 @@ function renderHistoryChart(history) {
   );
 }
 
+
+// ========================================
+// 8. ЗАГРУЗКА ИСТОРИИ
+// ========================================
 
 async function loadMonitoringHistory() {
   const requestId = ++historyRequestId;
@@ -711,14 +773,12 @@ async function loadMonitoringHistory() {
 
   const timeout = setTimeout(
     () => controller.abort(),
-    15000
+    REQUEST_TIMEOUT_MS
   );
 
   try {
     const response = await fetch(
-      `${HISTORY_API_URL}?period=${encodeURIComponent(
-        period
-      )}`,
+      `${HISTORY_API_URL}?period=${encodeURIComponent(period)}`,
       {
         credentials: "same-origin",
         cache: "no-store",
@@ -746,6 +806,7 @@ async function loadMonitoringHistory() {
     }
 
     if (
+      !result ||
       !result.ok ||
       result.period !== period ||
       !Array.isArray(result.history)
@@ -756,6 +817,7 @@ async function loadMonitoringHistory() {
     }
 
     renderHistoryChart(result.history);
+
     updateHistoryTable(result.history);
 
     console.log(
@@ -774,9 +836,10 @@ async function loadMonitoringHistory() {
     );
 
     clearHistoryChart();
+
     resetHistoryTable(
-  "История мониторинга недоступна"
-);
+      "История мониторинга недоступна"
+    );
 
     showHistoryMessage(
       "Не удалось загрузить историю мониторинга."
@@ -791,52 +854,10 @@ async function loadMonitoringHistory() {
   }
 }
 
-// Первоначальная загрузка истории
-loadMonitoringHistory();
 
-resetHistoryTable(
-  "Загрузка истории..."
-);
-
-resetMetrics();
-
-showMetricsMessage(
-  "Загрузка показателей..."
-);
-
-loadMonitoringMetrics();
-
-// Автоматическое обновление истории
-setInterval(() => {
-  if (!historyController) {
-    loadMonitoringHistory();
-  }
-}, 60 * 1000);
-
-
-// =========================
-// ADVANCED MONITORING METRICS
-// =========================
-
-const METRICS_API_URL =
-  "/api/monitoring/metrics";
-
-let metricsController = null;
-let metricsRequestId = 0;
-
-const metricsComponentNames = {
-  system_health: "CRM",
-  availability: "Сайт и API",
-  performance_frontend: "Frontend",
-  performance_backend: "Backend",
-  daily_reports: "Ежедневные отчёты"
-};
-
-function formatMetricsPercent(value) {
-  return Number.isFinite(value)
-    ? value.toFixed(2) + "%"
-    : "—";
-}
+// ========================================
+// 9. РАСШИРЕННАЯ АНАЛИТИКА
+// ========================================
 
 function showMetricsMessage(message = "") {
   const element = document.getElementById(
@@ -846,6 +867,7 @@ function showMetricsMessage(message = "") {
   if (!element) return;
 
   element.textContent = message;
+
   element.hidden = !message;
 }
 
@@ -939,8 +961,10 @@ function renderComponentMetrics(components) {
       "metrics-progress-fill";
 
     fill.style.width =
-      Math.min(100, Math.max(0, percent ?? 0))
-      + "%";
+      Math.min(
+        100,
+        Math.max(0, percent ?? 0)
+      ) + "%";
 
     fill.style.background =
       percent === null
@@ -960,12 +984,14 @@ function renderComponentMetrics(components) {
 }
 
 function resetMetrics() {
-  [
+  const ids = [
     "metrics-availability",
     "metrics-coverage",
     "metrics-expected",
     "metrics-missed"
-  ].forEach(id => {
+  ];
+
+  ids.forEach(id => {
     setAnalyticsText(id, "—");
   });
 
@@ -976,6 +1002,7 @@ function resetMetrics() {
 
 async function loadMonitoringMetrics() {
   const requestId = ++metricsRequestId;
+
   const period = selectedAnalyticsPeriod;
 
   if (metricsController) {
@@ -988,7 +1015,7 @@ async function loadMonitoringMetrics() {
 
   const timeout = setTimeout(
     () => controller.abort(),
-    15000
+    REQUEST_TIMEOUT_MS
   );
 
   try {
@@ -1001,7 +1028,9 @@ async function loadMonitoringMetrics() {
       }
     );
 
-    if (requestId !== metricsRequestId) return;
+    if (requestId !== metricsRequestId) {
+      return;
+    }
 
     if (response.status === 401) {
       window.location.replace("/admin/login");
@@ -1014,23 +1043,35 @@ async function loadMonitoringMetrics() {
 
     const result = await response.json();
 
-    if (requestId !== metricsRequestId) return;
+    if (requestId !== metricsRequestId) {
+      return;
+    }
 
     if (
+      !result ||
       !result.ok ||
       result.period !== period ||
       !result.metrics ||
       !Array.isArray(result.metrics.components)
     ) {
-      throw new Error("Invalid metrics response");
+      throw new Error(
+        "Invalid metrics response"
+      );
     }
 
     renderMetrics(result.metrics);
 
     showMetricsMessage();
 
+    console.log(
+      "Monitoring metrics loaded:",
+      result.metrics
+    );
+
   } catch (error) {
-    if (requestId !== metricsRequestId) return;
+    if (requestId !== metricsRequestId) {
+      return;
+    }
 
     console.error("Metrics error:", error);
 
@@ -1049,93 +1090,10 @@ async function loadMonitoringMetrics() {
   }
 }
 
-let monitoringStatusChart = null;
 
-function clearStatusChart() {
-  if (monitoringStatusChart) {
-    monitoringStatusChart.destroy();
-    monitoringStatusChart = null;
-  }
-}
-
-function renderStatusChart(data) {
-  const canvas = document.getElementById(
-    "monitoring-status-chart"
-  );
-
-  if (!canvas) return;
-
-  clearStatusChart();
-
-  if (
-    typeof Chart === "undefined" ||
-    !data.total_checks
-  ) {
-    return;
-  }
-
-  monitoringStatusChart = new Chart(
-    canvas,
-    {
-      type: "doughnut",
-
-      data: {
-        labels: [
-          "Успешные",
-          "Предупреждения",
-          "Критические",
-          "Неизвестные"
-        ],
-
-        datasets: [{
-          data: [
-            data.healthy_checks,
-            data.warning_checks,
-            data.critical_checks,
-            data.unknown_checks
-          ],
-
-          backgroundColor: [
-            "#22c55e",
-            "#eab308",
-            "#ef4444",
-            "#94a3b8"
-          ],
-
-          borderWidth: 0,
-          hoverOffset: 6
-        }]
-      },
-
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        cutout: "70%",
-
-        plugins: {
-          legend: {
-            position: "bottom",
-
-            labels: {
-              color: "#d1d5db",
-              padding: 16
-            }
-          }
-        }
-      }
-    }
-  );
-}
-
-
-// =========================
-// MONITORING HISTORY TABLE
-// =========================
-
-let monitoringHistoryRows = [];
-
-const HISTORY_TABLE_LIMIT = 50;
+// ========================================
+// 10. ТАБЛИЦА ИСТОРИИ ПРОВЕРОК
+// ========================================
 
 function renderHistoryTable() {
   const tbody = document.getElementById(
@@ -1234,19 +1192,181 @@ function resetHistoryTable(message) {
   );
 }
 
-document.getElementById(
-  "history-status-filter"
-)?.addEventListener(
-  "change",
-  renderHistoryTable
-);
 
-// Первоначальная загрузка показателей
-loadMonitoringMetrics();
+// ========================================
+// 11. ПЕРЕКЛЮЧЕНИЕ ПЕРИОДОВ
+// ========================================
 
-// Автоматическое обновление показателей
-setInterval(() => {
+function initializeAnalyticsPeriods() {
+  const buttons = document.querySelectorAll(
+    ".analytics-periods .period-btn"
+  );
+
+  buttons.forEach(button => {
+    button.addEventListener("click", () => {
+      const period = button.dataset.period;
+
+      if (!["24h", "7d", "30d"].includes(period)) {
+        return;
+      }
+
+      if (period === selectedAnalyticsPeriod) {
+        return;
+      }
+
+      selectedAnalyticsPeriod = period;
+
+      buttons.forEach(item => {
+        const active = item === button;
+
+        item.classList.toggle(
+          "active",
+          active
+        );
+
+        item.setAttribute(
+          "aria-pressed",
+          String(active)
+        );
+      });
+
+      // Сброс аналитических карточек
+      resetAnalytics();
+
+      const errorElement =
+        document.getElementById(
+          "analytics-error"
+        );
+
+      if (errorElement) {
+        errorElement.hidden = true;
+      }
+
+      setAnalyticsText(
+        "analytics-updated",
+        "Загрузка аналитики..."
+      );
+
+      // Сброс исторического графика
+      clearHistoryChart();
+
+      showHistoryMessage(
+        "Загрузка истории..."
+      );
+
+      // Сброс таблицы
+      resetHistoryTable(
+        "Загрузка истории..."
+      );
+
+      // Сброс расширенной аналитики
+      resetMetrics();
+
+      showMetricsMessage(
+        "Загрузка показателей..."
+      );
+
+      // Загрузка данных нового периода
+      loadAnalytics();
+
+      loadMonitoringHistory();
+
+      loadMonitoringMetrics();
+    });
+  });
+}
+
+
+// ========================================
+// 12. АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ
+// ========================================
+
+function refreshMonitoringDashboard() {
+  if (!monitoringLoading) {
+    loadMonitoring();
+  }
+
+  if (!analyticsController) {
+    loadAnalytics();
+  }
+
+  if (!historyController) {
+    loadMonitoringHistory();
+  }
+
   if (!metricsController) {
     loadMonitoringMetrics();
   }
-}, 60 * 1000);
+}
+
+
+// ========================================
+// 13. ИНИЦИАЛИЗАЦИЯ ПАНЕЛИ
+// ========================================
+
+function initializeMonitoringDashboard() {
+  // Начальное состояние аналитики
+  resetAnalytics();
+
+  resetMetrics();
+
+  resetHistoryTable(
+    "Загрузка истории..."
+  );
+
+  showHistoryMessage(
+    "Загрузка истории..."
+  );
+
+  showMetricsMessage(
+    "Загрузка показателей..."
+  );
+
+  setAnalyticsText(
+    "analytics-updated",
+    "Загрузка аналитики..."
+  );
+
+  // Подключение кнопок периодов
+  initializeAnalyticsPeriods();
+
+  // Подключение фильтра таблицы
+  const historyFilter = document.getElementById(
+    "history-status-filter"
+  );
+
+  if (historyFilter) {
+    historyFilter.addEventListener(
+      "change",
+      renderHistoryTable
+    );
+  }
+
+  // Первоначальная загрузка всех разделов
+  refreshMonitoringDashboard();
+
+  // Автоматическое обновление каждую минуту
+  setInterval(
+    refreshMonitoringDashboard,
+    REFRESH_INTERVAL_MS
+  );
+
+  console.log(
+    "AURA COFFEE Monitoring initialized successfully"
+  );
+}
+
+
+// ========================================
+// 14. ЗАПУСК ПОСЛЕ ГОТОВНОСТИ HTML
+// ========================================
+
+if (document.readyState === "loading") {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeMonitoringDashboard,
+    { once: true }
+  );
+} else {
+  initializeMonitoringDashboard();
+}
