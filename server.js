@@ -573,6 +573,31 @@ async function getMonitoringAnalytics(hours) {
   };
 }
 
+async function getMonitoringHistory(hours) {
+  const query = `
+    SELECT
+      checked_at,
+      overall_status,
+      problems_count
+    FROM monitoring_snapshots
+
+    WHERE checked_at >=
+      NOW() - ($1::integer * INTERVAL '1 hour')
+
+      AND checked_at <= NOW()
+
+    ORDER BY checked_at ASC
+  `;
+
+  const result = await pool.query(
+    query,
+    [hours]
+  );
+
+  return result.rows;
+}
+
+
 async function cleanupMonitoringHistory() {
   try {
     const result = await pool.query(`
@@ -979,6 +1004,62 @@ app.get(
     }
   }
 );
+
+app.get(
+  '/api/monitoring/history',
+  requireAdmin,
+  async (req, res) => {
+    res.setHeader(
+      'Cache-Control',
+      'no-store'
+    );
+
+    const periods = {
+      '24h': 24,
+      '7d': 168,
+      '30d': 720
+    };
+
+    const period = req.query.period ?? '24h';
+
+    if (
+      typeof period !== 'string' ||
+      !Object.hasOwn(periods, period)
+    ) {
+      return res.status(400).json({
+        error: 'Invalid period',
+        allowed: ['24h', '7d', '30d']
+      });
+    }
+
+    try {
+      const history =
+        await getMonitoringHistory(
+          periods[period]
+        );
+
+      return res.json({
+        ok: true,
+        period,
+        generated_at: new Date().toISOString(),
+        total: history.length,
+        history
+      });
+
+    } catch (error) {
+      console.error(
+        'Monitoring history error:',
+        error.code || error.message
+      );
+
+      return res.status(503).json({
+        ok: false,
+        error: 'History unavailable'
+      });
+    }
+  }
+);
+
 
 
 // Выход из административной панели
