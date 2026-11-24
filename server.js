@@ -597,6 +597,187 @@ async function getMonitoringHistory(hours) {
   return result.rows;
 }
 
+async function getMonitoringMetrics(hours) {
+  const query = `
+    WITH bounds AS (
+      SELECT date_bin(
+        INTERVAL '15 minutes',
+        NOW(),
+        TIMESTAMPTZ '2000-01-01 00:00:00+00'
+      ) AS end_at
+    ),
+
+    snapshots AS (
+      SELECT *
+      FROM monitoring_snapshots
+      WHERE checked_at >=
+        NOW() - ($1::integer * INTERVAL '1 hour')
+        AND checked_at <= NOW()
+    ),
+
+    coverage AS (
+      SELECT COUNT(DISTINCT date_bin(
+        INTERVAL '15 minutes',
+        checked_at,
+        TIMESTAMPTZ '2000-01-01 00:00:00+00'
+      ))::integer AS filled_intervals
+
+      FROM monitoring_snapshots
+      CROSS JOIN bounds
+
+      WHERE checked_at >=
+        end_at - ($1::integer * INTERVAL '1 hour')
+        AND checked_at < end_at
+    ),
+
+    component_stats AS (
+      SELECT
+        component.key AS name,
+
+        COUNT(*)::integer AS total,
+
+        COUNT(*) FILTER (
+          WHERE component.value ->> 'status'
+            = 'healthy'
+        )::integer AS healthy,
+
+        COUNT(*) FILTER (
+          WHERE component.value ->> 'status'
+            = 'warning'
+        )::integer AS warning,
+
+        COUNT(*) FILTER (
+          WHERE component.value ->> 'status'
+            = 'critical'
+        )::integer AS critical,
+
+        COUNT(*) FILTER (
+          WHERE component.value ->> 'status'
+            = 'unknown'
+        )::integer AS unknown
+
+      FROM snapshots
+
+      CROSS JOIN LATERAL
+        jsonb_each(components) AS component
+
+      WHERE component.key IN (
+        'system_health',
+        'availability',
+        'performance_frontend',
+        'performance_backend',
+        'daily_reports'
+      )
+
+      GROUP BY component.key
+    )
+
+    SELECT
+      coverage.filled_intervals,
+
+      (
+        SELECT COUNT(*)::integer
+        FROM snapshots
+      ) AS total_checks,
+
+      COALESCE(
+        (
+          SELECT jsonb_agg(
+            to_jsonb(component_stats)
+          )
+          FROM component_stats
+        ),
+        '[]'::jsonb
+      ) AS components
+
+    FROM coverage
+  `;
+
+  const result = await pool.query(
+    query,
+    [hours]
+  );
+
+  const row = result.rows[0];
+
+  const expectedChecks = hours * 4;
+
+  const filledIntervals = Math.min(
+    expectedChecks,
+    row.filled_intervals
+  );
+
+  const missedChecks =
+    expectedChecks - filledIntervals;
+
+  const coveragePercent = Number(
+    (
+      filledIntervals /
+      expectedChecks * 100
+    ).toFixed(2)
+  );
+
+  const components = row.components.map(
+    component => ({
+      ...component,
+
+      healthy_percent:
+        component.total > 0
+          ? Number(
+              (
+                component.healthy /
+                component.total * 100
+              ).toFixed(2)
+            )
+          : null
+    })
+  );
+
+  const availability = components.find(
+    component =>
+      component.name === "availability"
+  );
+
+  const knownAvailabilityChecks =
+    availability
+      ? availability.healthy +
+        availability.warning +
+        availability.critical
+      : 0;
+
+  const availabilityPercent =
+    knownAvailabilityChecks > 0
+      ? Number(
+          (
+            availability.healthy /
+            knownAvailabilityChecks * 100
+          ).toFixed(2)
+        )
+      : null;
+
+  return {
+    period_hours: hours,
+
+    total_checks: row.total_checks,
+
+    expected_checks: expectedChecks,
+
+    filled_intervals: filledIntervals,
+
+    missed_checks: missedChecks,
+
+    coverage_percent: coveragePercent,
+
+    availability_percent:
+      availabilityPercent,
+
+    availability_known_checks:
+      knownAvailabilityChecks,
+
+    components
+  };
+}
+
 
 async function cleanupMonitoringHistory() {
   try {
@@ -1055,6 +1236,60 @@ app.get(
       return res.status(503).json({
         ok: false,
         error: 'History unavailable'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/monitoring/metrics',
+  requireAdmin,
+  async (req, res) => {
+    res.setHeader(
+      'Cache-Control',
+      'no-store'
+    );
+
+    const periods = {
+      '24h': 24,
+      '7d': 168,
+      '30d': 720
+    };
+
+    const period = req.query.period ?? '24h';
+
+    if (
+      typeof period !== 'string' ||
+      !Object.hasOwn(periods, period)
+    ) {
+      return res.status(400).json({
+        error: 'Invalid period',
+        allowed: ['24h', '7d', '30d']
+      });
+    }
+
+    try {
+      const metrics =
+        await getMonitoringMetrics(
+          periods[period]
+        );
+
+      return res.json({
+        ok: true,
+        period,
+        generated_at: new Date().toISOString(),
+        metrics
+      });
+
+    } catch (error) {
+      console.error(
+        'Monitoring metrics error:',
+        error.code || error.message
+      );
+
+      return res.status(503).json({
+        ok: false,
+        error: 'Metrics unavailable'
       });
     }
   }
