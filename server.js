@@ -1457,6 +1457,39 @@ async function acknowledgeMonitoringIncident(id) {
 }
 
 
+// ========================================
+// COUNT MONITORING INCIDENTS
+// ========================================
+
+async function countMonitoringIncidents({
+  status = 'all',
+  severity = 'all'
+} = {}) {
+
+  const result = await pool.query(
+    `
+      SELECT COUNT(*)::integer AS total
+
+      FROM monitoring_incidents
+
+      WHERE (
+        $1::text = 'all'
+        OR status = $1::text
+      )
+
+      AND (
+        $2::text = 'all'
+        OR severity = $2::text
+      )
+    `,
+    [status, severity]
+  );
+
+  return result.rows[0].total;
+
+}
+
+
 async function getMonitoringIncidentSummary() {
 
   const query = `
