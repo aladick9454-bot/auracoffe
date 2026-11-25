@@ -3255,6 +3255,714 @@ setInterval(() => {
   }
 }, 60000).unref();
 
+
+// ========================================
+// AUTOMATED RECOVERY SYSTEM
+// ========================================
+
+const recoveryAllowedComponents = new Set([
+
+  "system_health",
+
+  "availability",
+
+  "performance_frontend",
+
+  "performance_backend"
+
+]);
+
+
+const recoveryAllowedOrigin =
+  "https://aura-coffee-api-2lty.onrender.com";
+
+
+// ========================================
+// MUTATION SECURITY
+// ========================================
+
+function requireRecoveryMutation(
+  req,
+  res,
+  next
+) {
+
+  if (
+    req.get("origin") !==
+    recoveryAllowedOrigin
+  ) {
+
+    return res.status(403).json({
+
+      ok: false,
+
+      error: "Invalid origin"
+
+    });
+
+  }
+
+  if (!req.is("application/json")) {
+
+    return res.status(415).json({
+
+      ok: false,
+
+      error: "JSON required"
+
+    });
+
+  }
+
+  next();
+
+}
+
+
+// ========================================
+// RECOVERY DASHBOARD API
+// ========================================
+
+app.get(
+
+  "/api/monitoring/recovery",
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set(
+      "Cache-Control",
+      "no-store"
+    );
+
+    try {
+
+      const [
+
+        summaryResult,
+
+        jobsResult,
+
+        policiesResult,
+
+        eventsResult,
+
+        incidentsResult
+
+      ] = await Promise.all([
+
+        pool.query(`
+
+          SELECT
+
+            COUNT(*)::integer
+              AS total_jobs,
+
+            COUNT(*) FILTER (
+
+              WHERE status = 'recovered'
+
+            )::integer
+              AS recovered_jobs,
+
+            COUNT(*) FILTER (
+
+              WHERE status = 'failed'
+
+            )::integer
+              AS failed_jobs,
+
+            COUNT(*) FILTER (
+
+              WHERE status IN (
+                'pending',
+                'retry',
+                'processing',
+                'verifying'
+              )
+
+            )::integer
+              AS active_jobs,
+
+            ROUND(
+
+              100.0 *
+
+              COUNT(*) FILTER (
+
+                WHERE status = 'recovered'
+
+              )
+
+              / NULLIF(
+
+                COUNT(*) FILTER (
+
+                  WHERE status IN (
+                    'recovered',
+                    'failed'
+                  )
+
+                ),
+
+                0
+
+              ),
+
+              2
+
+            ) AS success_rate,
+
+            ROUND(
+
+              AVG(
+
+                EXTRACT(EPOCH FROM (
+
+                  completed_at -
+                  first_started_at
+
+                )) / 60
+
+              ) FILTER (
+
+                WHERE status = 'recovered'
+
+              ),
+
+              2
+
+            ) AS average_recovery_minutes
+
+          FROM monitoring_recovery_jobs
+
+        `),
+
+
+        pool.query(`
+
+          SELECT
+
+            j.id::text,
+
+            j.incident_id::text,
+
+            j.component,
+
+            j.action_type,
+
+            j.status,
+
+            j.trigger_source,
+
+            j.attempt_count,
+
+            j.max_attempts,
+
+            j.next_attempt_at,
+
+            j.last_error,
+
+            j.created_at,
+
+            j.completed_at,
+
+            i.title AS incident_title
+
+          FROM monitoring_recovery_jobs j
+
+          INNER JOIN monitoring_incidents i
+            ON i.id = j.incident_id
+
+          ORDER BY j.id DESC
+
+          LIMIT 50
+
+        `),
+
+
+        pool.query(`
+
+          SELECT
+
+            component,
+
+            action_type,
+
+            enabled,
+
+            max_attempts,
+
+            cooldown_minutes,
+
+            failure_threshold,
+
+            consecutive_failures,
+
+            circuit_open_until,
+
+            last_started_at,
+
+            COALESCE(
+
+              circuit_open_until > NOW(),
+
+              FALSE
+
+            ) AS circuit_open
+
+          FROM monitoring_recovery_policies
+
+          ORDER BY component
+
+        `),
+
+
+        pool.query(`
+
+          SELECT
+
+            id::text,
+
+            job_id::text,
+
+            event_type,
+
+            message,
+
+            created_at
+
+          FROM monitoring_recovery_events
+
+          ORDER BY id DESC
+
+          LIMIT 50
+
+        `),
+
+
+        pool.query(`
+
+          SELECT
+
+            i.id::text,
+
+            i.component,
+
+            i.title,
+
+            i.severity
+
+          FROM monitoring_incidents i
+
+          INNER JOIN monitoring_recovery_policies p
+            ON p.component = i.component
+
+          WHERE i.status IN (
+            'open',
+            'acknowledged'
+          )
+
+          AND p.enabled = TRUE
+
+          AND NOT EXISTS (
+
+            SELECT 1
+
+            FROM monitoring_recovery_jobs j
+
+            WHERE j.incident_id = i.id
+
+            AND j.action_type = p.action_type
+
+          )
+
+          ORDER BY i.id DESC
+
+          LIMIT 50
+
+        `)
+
+      ]);
+
+
+      const summary =
+        summaryResult.rows[0];
+
+
+      for (const field of [
+
+        "success_rate",
+
+        "average_recovery_minutes"
+
+      ]) {
+
+        if (summary[field] !== null) {
+
+          summary[field] =
+            Number(summary[field]);
+
+        }
+
+      }
+
+
+      return res.json({
+
+        ok: true,
+
+        generated_at:
+          new Date().toISOString(),
+
+        summary,
+
+        jobs: jobsResult.rows,
+
+        policies: policiesResult.rows,
+
+        events: eventsResult.rows,
+
+        eligible_incidents:
+          incidentsResult.rows
+
+      });
+
+
+    } catch (error) {
+
+      console.error(
+
+        "Recovery dashboard error:",
+
+        error.message
+
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error: "Recovery service unavailable"
+
+      });
+
+    }
+
+  }
+
+);
+
+
+// ========================================
+// UPDATE RECOVERY POLICY
+// ========================================
+
+app.post(
+
+  "/api/monitoring/recovery/policies/:component",
+
+  requireAdmin,
+
+  requireRecoveryMutation,
+
+  async (req, res) => {
+
+    res.set(
+      "Cache-Control",
+      "no-store"
+    );
+
+    const component =
+      req.params.component;
+
+    const enabled =
+      req.body?.enabled;
+
+    if (
+
+      !recoveryAllowedComponents.has(
+        component
+      )
+
+      || typeof enabled !== "boolean"
+
+    ) {
+
+      return res.status(400).json({
+
+        ok: false,
+
+        error: "Invalid recovery policy"
+
+      });
+
+    }
+
+    try {
+
+      const result = await pool.query(
+
+        `
+
+          UPDATE monitoring_recovery_policies
+
+          SET
+
+            enabled = $2,
+
+            updated_at = NOW()
+
+          WHERE component = $1
+
+          RETURNING
+            component,
+            action_type,
+            enabled
+
+        `,
+
+        [component, enabled]
+
+      );
+
+      if (!result.rowCount) {
+
+        return res.status(404).json({
+
+          ok: false,
+
+          error: "Policy not found"
+
+        });
+
+      }
+
+      console.log(
+
+        "Recovery policy updated:",
+
+        component,
+
+        enabled
+
+      );
+
+      return res.json({
+
+        ok: true,
+
+        policy: result.rows[0]
+
+      });
+
+    } catch (error) {
+
+      console.error(
+
+        "Recovery policy error:",
+
+        error.message
+
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error: "Policy update unavailable"
+
+      });
+
+    }
+
+  }
+
+);
+
+
+// ========================================
+// MANUAL RECOVERY REQUEST
+// ========================================
+
+app.post(
+
+  "/api/monitoring/recovery/manual",
+
+  requireAdmin,
+
+  requireRecoveryMutation,
+
+  async (req, res) => {
+
+    res.set(
+      "Cache-Control",
+      "no-store"
+    );
+
+    const incidentId =
+      req.body?.incident_id;
+
+    if (
+
+      typeof incidentId !== "string"
+
+      || !/^[1-9]\d{0,18}$/.test(
+        incidentId
+      )
+
+      || BigInt(incidentId) >
+        9223372036854775807n
+
+    ) {
+
+      return res.status(400).json({
+
+        ok: false,
+
+        error: "Invalid incident ID"
+
+      });
+
+    }
+
+    try {
+
+      const result = await pool.query(
+
+        `
+
+          INSERT INTO monitoring_recovery_jobs (
+
+            incident_id,
+
+            component,
+
+            action_type,
+
+            max_attempts,
+
+            trigger_source
+
+          )
+
+          SELECT
+
+            i.id,
+
+            i.component,
+
+            p.action_type,
+
+            p.max_attempts,
+
+            'manual'
+
+          FROM monitoring_incidents i
+
+          INNER JOIN monitoring_recovery_policies p
+
+            ON p.component = i.component
+
+          WHERE i.id = $1::bigint
+
+          AND i.status IN (
+            'open',
+            'acknowledged'
+          )
+
+          AND p.enabled = TRUE
+
+          AND (
+
+            p.circuit_open_until IS NULL
+
+            OR p.circuit_open_until <= NOW()
+
+          )
+
+          ON CONFLICT (
+            incident_id,
+            action_type
+          )
+
+          DO NOTHING
+
+          RETURNING
+
+            id::text,
+
+            incident_id::text,
+
+            component,
+
+            status
+
+        `,
+
+        [incidentId]
+
+      );
+
+
+      if (!result.rowCount) {
+
+        return res.status(409).json({
+
+          ok: false,
+
+          error:
+            "Recovery not permitted or already queued"
+
+        });
+
+      }
+
+
+      console.log(
+
+        "Manual recovery requested:",
+
+        incidentId
+
+      );
+
+
+      return res.status(201).json({
+
+        ok: true,
+
+        job: result.rows[0]
+
+      });
+
+
+    } catch (error) {
+
+      console.error(
+
+        "Manual recovery error:",
+
+        error.message
+
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error: "Recovery request unavailable"
+
+      });
+
+    }
+
+  }
+
+);
+
+
 // Запуск сервера
 app.listen(port, () => {
   console.log(`AURA COFFEE: http://localhost:${port}`);

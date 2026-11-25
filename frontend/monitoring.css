@@ -1685,3 +1685,237 @@ footer {
   }
 
 }
+
+
+/* ========================================
+   AUTOMATED RECOVERY DASHBOARD
+======================================== */
+
+.rec-section {
+  margin-top: 32px;
+  padding: 24px;
+  background: #111827;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 16px;
+}
+
+.rec-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.rec-header h2 {
+  margin: 0 0 8px;
+  color: #f5c76b;
+  font-size: 24px;
+}
+
+.rec-header p {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.rec-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rec-card {
+  min-width: 0;
+  padding: 20px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+}
+
+.rec-card span {
+  display: block;
+  margin-bottom: 12px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.rec-card strong {
+  display: block;
+  font-size: 30px;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-green {
+  color: #4ade80;
+}
+
+.rec-red {
+  color: #f87171;
+}
+
+.rec-yellow {
+  color: #fbbf24;
+}
+
+.rec-blue {
+  color: #60a5fa;
+}
+
+.rec-gray {
+  color: #9ca3af;
+}
+
+.rec-section h3 {
+  margin: 28px 0 16px;
+  color: #f5c76b;
+  font-size: 18px;
+}
+
+.rec-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #374151;
+  border-radius: 10px;
+}
+
+.rec-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.rec-table th {
+  padding: 14px;
+  background: #1f2937;
+  color: #d1d5db;
+  white-space: nowrap;
+}
+
+.rec-table td {
+  padding: 14px;
+  border-top: 1px solid #374151;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.rec-table tr:hover td {
+  background: #1c2534;
+}
+
+.rec-button {
+  padding: 10px 16px;
+  background: #f5c76b;
+  color: #111827;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rec-button:hover {
+  background: #fbbf24;
+}
+
+.rec-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rec-button-secondary {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.rec-button-secondary:hover {
+  background: #4b5563;
+}
+
+.rec-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+#recovery-incident-select {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+}
+
+.rec-message {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #1e3a5f;
+  color: #bfdbfe;
+  border-radius: 8px;
+}
+
+.rec-message.is-error {
+  background: #450a0a;
+  color: #fecaca;
+}
+
+.rec-message[hidden] {
+  display: none;
+}
+
+.rec-note,
+#recovery-updated {
+  margin-top: 16px;
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.rec-button:focus-visible,
+#recovery-incident-select:focus-visible {
+  outline: 2px solid #f5c76b;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+
+  .rec-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  .rec-section {
+    padding: 16px;
+  }
+
+  .rec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rec-header h2 {
+    font-size: 20px;
+  }
+
+  .rec-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rec-card strong {
+    font-size: 26px;
+  }
+
+}

@@ -1199,6 +1199,220 @@
 </section>
 
 
+<!-- ========================================
+     AUTOMATED RECOVERY DASHBOARD
+========================================= -->
+
+<section
+  id="recovery-dashboard"
+  class="rec-section"
+>
+
+  <div class="rec-header">
+
+    <div>
+
+      <h2>
+        Automated Recovery System
+      </h2>
+
+      <p>
+        Автоматическое восстановление системы
+      </p>
+
+    </div>
+
+    <button
+      type="button"
+      id="recovery-refresh"
+      class="rec-button"
+    >
+      ↻ Обновить
+    </button>
+
+  </div>
+
+  <p
+    id="recovery-message"
+    class="rec-message"
+    role="status"
+    hidden
+  ></p>
+
+  <div class="rec-grid">
+
+    <article class="rec-card">
+      <span>Всего задач</span>
+      <strong id="recovery-total">—</strong>
+    </article>
+
+    <article class="rec-card">
+      <span>Восстановлено</span>
+      <strong
+        id="recovery-recovered"
+        class="rec-green"
+      >—</strong>
+    </article>
+
+    <article class="rec-card">
+      <span>Неудачные задачи</span>
+      <strong
+        id="recovery-failed"
+        class="rec-red"
+      >—</strong>
+    </article>
+
+    <article class="rec-card">
+      <span>Активные задачи</span>
+      <strong
+        id="recovery-active"
+        class="rec-yellow"
+      >—</strong>
+    </article>
+
+    <article class="rec-card">
+      <span>Эффективность</span>
+      <strong id="recovery-rate">—</strong>
+    </article>
+
+    <article class="rec-card">
+      <span>Среднее время восстановления</span>
+      <strong id="recovery-average">—</strong>
+    </article>
+
+  </div>
+
+  <h3>
+    Политики восстановления
+  </h3>
+
+  <div class="rec-table-wrapper">
+
+    <table class="rec-table">
+
+      <thead>
+        <tr>
+          <th>Компонент</th>
+          <th>Действие</th>
+          <th>Попытки</th>
+          <th>Cooldown</th>
+          <th>Circuit Breaker</th>
+          <th>Статус</th>
+          <th>Управление</th>
+        </tr>
+      </thead>
+
+      <tbody id="recovery-policies-body">
+        <tr>
+          <td colspan="7">Загрузка...</td>
+        </tr>
+      </tbody>
+
+    </table>
+
+  </div>
+
+  <h3>
+    Ручное восстановление
+  </h3>
+
+  <div class="rec-controls">
+
+    <select
+      id="recovery-incident-select"
+      aria-label="Выбор инцидента"
+    >
+      <option value="">
+        Нет доступных инцидентов
+      </option>
+    </select>
+
+    <button
+      type="button"
+      id="recovery-manual"
+      class="rec-button"
+      disabled
+    >
+      Запустить восстановление
+    </button>
+
+  </div>
+
+  <h3>
+    Последние задачи восстановления
+  </h3>
+
+  <div class="rec-table-wrapper">
+
+    <table class="rec-table">
+
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Инцидент</th>
+          <th>Компонент</th>
+          <th>Статус</th>
+          <th>Попытки</th>
+          <th>Источник</th>
+          <th>Создано</th>
+          <th>Ошибка</th>
+        </tr>
+      </thead>
+
+      <tbody id="recovery-jobs-body">
+        <tr>
+          <td colspan="8">Загрузка...</td>
+        </tr>
+      </tbody>
+
+    </table>
+
+  </div>
+
+  <h3>
+    Журнал восстановления
+  </h3>
+
+  <div class="rec-table-wrapper">
+
+    <table class="rec-table">
+
+      <thead>
+        <tr>
+          <th>Задача</th>
+          <th>Событие</th>
+          <th>Описание</th>
+          <th>Дата</th>
+        </tr>
+      </thead>
+
+      <tbody id="recovery-events-body">
+        <tr>
+          <td colspan="4">Загрузка...</td>
+        </tr>
+      </tbody>
+
+    </table>
+
+  </div>
+
+  <p class="rec-note">
+
+    Эффективность рассчитывается
+    по завершённым задачам восстановления.
+
+    Автоматическое обновление
+    каждые 60 секунд.
+
+  </p>
+
+  <p id="recovery-updated">
+    Ожидание обновления...
+  </p>
+
+</section>
+
+
   </main>
 
 

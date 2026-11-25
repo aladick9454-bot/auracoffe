@@ -6103,3 +6103,1057 @@ if (
   }
 
 })();
+
+
+// ========================================
+// AUTOMATED RECOVERY DASHBOARD
+// ========================================
+
+;(() => {
+
+  "use strict";
+
+  const API =
+    "/api/monitoring/recovery";
+
+  let loading = false;
+
+  let mutating = false;
+
+
+  const componentNames = {
+
+    system_health:
+      "Состояние системы",
+
+    availability:
+      "Доступность сайта и API",
+
+    performance_frontend:
+      "Frontend",
+
+    performance_backend:
+      "Backend",
+
+    daily_reports:
+      "Ежедневные отчёты"
+
+  };
+
+
+  const actionNames = {
+
+    resync_monitoring:
+      "Повторная синхронизация",
+
+    recheck_availability:
+      "Повторная проверка"
+
+  };
+
+
+  const statusNames = {
+
+    pending: "В очереди",
+
+    processing: "Выполняется",
+
+    verifying: "Проверяется",
+
+    retry: "Повторная попытка",
+
+    recovered: "Восстановлено",
+
+    failed: "Ошибка",
+
+    cancelled: "Отменено",
+
+    created: "Создано"
+
+  };
+
+
+  const statusColors = {
+
+    pending: "rec-yellow",
+
+    processing: "rec-blue",
+
+    verifying: "rec-blue",
+
+    retry: "rec-yellow",
+
+    recovered: "rec-green",
+
+    failed: "rec-red",
+
+    cancelled: "rec-gray"
+
+  };
+
+
+  function el(id) {
+
+    return document.getElementById(id);
+
+  }
+
+
+  function setText(id, value) {
+
+    const element = el(id);
+
+    if (element) {
+
+      element.textContent =
+        value ?? "—";
+
+    }
+
+  }
+
+
+  function formatDate(value) {
+
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+
+      return "—";
+
+    }
+
+    return date.toLocaleString(
+
+      "ru-RU",
+
+      {
+
+        timeZone:
+          "Asia/Novosibirsk"
+
+      }
+
+    );
+
+  }
+
+
+  function formatNumber(value, suffix = "") {
+
+    if (
+
+      value === null ||
+
+      value === undefined ||
+
+      !Number.isFinite(Number(value))
+
+    ) {
+
+      return "—";
+
+    }
+
+    return (
+
+      Number(value).toLocaleString(
+
+        "ru-RU",
+
+        {
+
+          maximumFractionDigits: 2
+
+        }
+
+      ) + suffix
+
+    );
+
+  }
+
+
+  function showMessage(
+    message = "",
+    isError = false
+  ) {
+
+    const element =
+      el("recovery-message");
+
+    element.textContent = message;
+
+    element.hidden = !message;
+
+    element.classList.toggle(
+      "is-error",
+      isError
+    );
+
+  }
+
+
+  async function request(
+    url,
+    options = {}
+  ) {
+
+    const controller =
+      new AbortController();
+
+    const timeout = setTimeout(
+
+      () => controller.abort(),
+
+      15000
+
+    );
+
+    try {
+
+      const response = await fetch(
+
+        url,
+
+        {
+
+          credentials: "same-origin",
+
+          cache: "no-store",
+
+          ...options,
+
+          signal: controller.signal
+
+        }
+
+      );
+
+      if (response.status === 401) {
+
+        window.location.href =
+          "/admin/login";
+
+        throw new Error(
+          "Unauthorized"
+        );
+
+      }
+
+      const data = await response.json();
+
+      if (
+        !response.ok ||
+        data.ok !== true
+      ) {
+
+        throw new Error(
+
+          data.error ||
+          `HTTP ${response.status}`
+
+        );
+
+      }
+
+      return data;
+
+    } finally {
+
+      clearTimeout(timeout);
+
+    }
+
+  }
+
+
+  function createCell(
+    row,
+    value,
+    className = ""
+  ) {
+
+    const cell =
+      document.createElement("td");
+
+    cell.textContent =
+      value ?? "—";
+
+    if (className) {
+
+      cell.className = className;
+
+    }
+
+    row.appendChild(cell);
+
+    return cell;
+
+  }
+
+
+  function emptyTable(
+    body,
+    columns,
+    message
+  ) {
+
+    body.replaceChildren();
+
+    const row =
+      document.createElement("tr");
+
+    const cell =
+      createCell(row, message);
+
+    cell.colSpan = columns;
+
+    body.appendChild(row);
+
+  }
+
+
+  function renderSummary(summary) {
+
+    setText(
+      "recovery-total",
+      summary.total_jobs
+    );
+
+    setText(
+      "recovery-recovered",
+      summary.recovered_jobs
+    );
+
+    setText(
+      "recovery-failed",
+      summary.failed_jobs
+    );
+
+    setText(
+      "recovery-active",
+      summary.active_jobs
+    );
+
+    setText(
+
+      "recovery-rate",
+
+      formatNumber(
+        summary.success_rate,
+        "%"
+      )
+
+    );
+
+    setText(
+
+      "recovery-average",
+
+      formatNumber(
+
+        summary.average_recovery_minutes,
+
+        " мин."
+
+      )
+
+    );
+
+  }
+
+
+  function renderPolicies(policies) {
+
+    const body =
+      el("recovery-policies-body");
+
+    body.replaceChildren();
+
+    if (!policies.length) {
+
+      emptyTable(
+        body,
+        7,
+        "Нет политик"
+      );
+
+      return;
+
+    }
+
+    for (const policy of policies) {
+
+      const row =
+        document.createElement("tr");
+
+      createCell(
+
+        row,
+
+        componentNames[policy.component] ||
+        policy.component
+
+      );
+
+      createCell(
+
+        row,
+
+        actionNames[policy.action_type] ||
+        policy.action_type
+
+      );
+
+      createCell(
+        row,
+        policy.max_attempts
+      );
+
+      createCell(
+
+        row,
+
+        `${policy.cooldown_minutes} мин.`
+
+      );
+
+      createCell(
+
+        row,
+
+        policy.circuit_open
+
+          ? `Заблокирован до ${formatDate(
+              policy.circuit_open_until
+            )}`
+
+          : `Ошибки: ${policy.consecutive_failures}/${policy.failure_threshold}`,
+
+        policy.circuit_open
+          ? "rec-red"
+          : "rec-green"
+
+      );
+
+      createCell(
+
+        row,
+
+        policy.enabled
+          ? "Включена"
+          : "Отключена",
+
+        policy.enabled
+          ? "rec-green"
+          : "rec-gray"
+
+      );
+
+      const actionCell =
+        createCell(row, "");
+
+      const button =
+        document.createElement("button");
+
+      button.type = "button";
+
+      button.className =
+        "rec-button rec-button-secondary";
+
+      button.textContent =
+        policy.enabled
+          ? "Отключить"
+          : "Включить";
+
+      button.disabled = mutating;
+
+      button.addEventListener(
+
+        "click",
+
+        () => togglePolicy(policy)
+
+      );
+
+      actionCell.appendChild(button);
+
+      body.appendChild(row);
+
+    }
+
+  }
+
+
+  function renderJobs(jobs) {
+
+    const body =
+      el("recovery-jobs-body");
+
+    body.replaceChildren();
+
+    if (!jobs.length) {
+
+      emptyTable(
+        body,
+        8,
+        "Задач восстановления пока нет"
+      );
+
+      return;
+
+    }
+
+    for (const job of jobs) {
+
+      const row =
+        document.createElement("tr");
+
+      createCell(
+        row,
+        `#${job.id}`
+      );
+
+      createCell(
+        row,
+        `#${job.incident_id}`
+      );
+
+      createCell(
+
+        row,
+
+        componentNames[job.component] ||
+        job.component
+
+      );
+
+      createCell(
+
+        row,
+
+        statusNames[job.status] ||
+        job.status,
+
+        statusColors[job.status] || ""
+
+      );
+
+      createCell(
+
+        row,
+
+        `${job.attempt_count}/${job.max_attempts}`
+
+      );
+
+      createCell(
+
+        row,
+
+        job.trigger_source === "manual"
+          ? "Ручной"
+          : "Автоматический"
+
+      );
+
+      createCell(
+
+        row,
+
+        formatDate(job.created_at)
+
+      );
+
+      createCell(
+
+        row,
+
+        job.last_error || "—"
+
+      );
+
+      body.appendChild(row);
+
+    }
+
+  }
+
+
+  function renderEvents(events) {
+
+    const body =
+      el("recovery-events-body");
+
+    body.replaceChildren();
+
+    if (!events.length) {
+
+      emptyTable(
+        body,
+        4,
+        "Событий пока нет"
+      );
+
+      return;
+
+    }
+
+    for (const event of events) {
+
+      const row =
+        document.createElement("tr");
+
+      createCell(
+        row,
+        `#${event.job_id}`
+      );
+
+      createCell(
+
+        row,
+
+        statusNames[event.event_type] ||
+        event.event_type,
+
+        statusColors[event.event_type] ||
+        ""
+
+      );
+
+      createCell(
+        row,
+        event.message
+      );
+
+      createCell(
+
+        row,
+
+        formatDate(event.created_at)
+
+      );
+
+      body.appendChild(row);
+
+    }
+
+  }
+
+
+  function renderIncidents(incidents) {
+
+    const select =
+      el("recovery-incident-select");
+
+    const previous =
+      select.value;
+
+    select.replaceChildren();
+
+    const placeholder =
+      document.createElement("option");
+
+    placeholder.value = "";
+
+    placeholder.textContent =
+      incidents.length
+
+        ? "Выберите инцидент"
+
+        : "Нет доступных инцидентов";
+
+    select.appendChild(placeholder);
+
+    for (const incident of incidents) {
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        incident.id;
+
+      option.textContent =
+
+        `#${incident.id} — ${incident.title}`;
+
+      select.appendChild(option);
+
+    }
+
+    if (
+
+      incidents.some(
+
+        incident =>
+          incident.id === previous
+
+      )
+
+    ) {
+
+      select.value = previous;
+
+    }
+
+    el("recovery-manual").disabled =
+
+      !select.value || mutating;
+
+  }
+
+
+  async function loadRecovery() {
+
+    if (loading || mutating) {
+
+      return;
+
+    }
+
+    loading = true;
+
+    el("recovery-refresh").disabled =
+      true;
+
+    try {
+
+      const data = await request(API);
+
+      renderSummary(data.summary);
+
+      renderPolicies(data.policies);
+
+      renderJobs(data.jobs);
+
+      renderEvents(data.events);
+
+      renderIncidents(
+        data.eligible_incidents
+      );
+
+      setText(
+
+        "recovery-updated",
+
+        `Обновлено: ${formatDate(
+          data.generated_at
+        )} (НСК)`
+
+      );
+
+      showMessage("");
+
+      console.log(
+
+        "Recovery dashboard loaded:",
+
+        data
+
+      );
+
+    } catch (error) {
+
+      showMessage(
+
+        "Не удалось загрузить данные: " +
+        error.message,
+
+        true
+
+      );
+
+      setText(
+
+        "recovery-updated",
+
+        "Ошибка обновления. Показанные данные могут быть устаревшими."
+
+      );
+
+      el("recovery-manual").disabled =
+        true;
+
+      for (const button of
+
+        el("recovery-policies-body")
+          .querySelectorAll("button")
+
+      ) {
+
+        button.disabled = true;
+
+      }
+
+      console.error(
+
+        "Recovery dashboard error:",
+
+        error
+
+      );
+
+    } finally {
+
+      loading = false;
+
+      el("recovery-refresh").disabled =
+        false;
+
+    }
+
+  }
+
+
+  async function togglePolicy(policy) {
+
+    if (mutating || loading) return;
+
+    const enabled = !policy.enabled;
+
+    const confirmed = window.confirm(
+
+      `${enabled ? "Включить" : "Отключить"} политику ${policy.component}?`
+
+    );
+
+    if (!confirmed) return;
+
+    mutating = true;
+
+    try {
+
+      await request(
+
+        `${API}/policies/${encodeURIComponent(
+          policy.component
+        )}`,
+
+        {
+
+          method: "POST",
+
+          headers: {
+
+            "Content-Type":
+              "application/json"
+
+          },
+
+          body: JSON.stringify({
+            enabled
+          })
+
+        }
+
+      );
+
+    } catch (error) {
+
+      window.alert(
+        "Ошибка: " + error.message
+      );
+
+    } finally {
+
+      mutating = false;
+
+      await loadRecovery();
+
+    }
+
+  }
+
+
+  async function manualRecovery() {
+
+    if (mutating || loading) return;
+
+    const incidentId =
+
+      el("recovery-incident-select")
+        .value;
+
+    if (!incidentId) return;
+
+    const confirmed = window.confirm(
+
+      `Добавить восстановление инцидента #${incidentId} в очередь?`
+
+    );
+
+    if (!confirmed) return;
+
+    mutating = true;
+
+    el("recovery-manual").disabled =
+      true;
+
+    try {
+
+      await request(
+
+        `${API}/manual`,
+
+        {
+
+          method: "POST",
+
+          headers: {
+
+            "Content-Type":
+              "application/json"
+
+          },
+
+          body: JSON.stringify({
+
+            incident_id: incidentId
+
+          })
+
+        }
+
+      );
+
+    } catch (error) {
+
+      window.alert(
+        "Ошибка: " + error.message
+      );
+
+    } finally {
+
+      mutating = false;
+
+      await loadRecovery();
+
+    }
+
+  }
+
+
+  function initialize() {
+
+    const dashboard =
+      el("recovery-dashboard");
+
+    if (!dashboard) return;
+
+    if (
+
+      dashboard.dataset.initialized
+      === "true"
+
+    ) return;
+
+    dashboard.dataset.initialized =
+      "true";
+
+    el("recovery-refresh")
+      .addEventListener(
+
+        "click",
+
+        loadRecovery
+
+      );
+
+    el("recovery-manual")
+      .addEventListener(
+
+        "click",
+
+        manualRecovery
+
+      );
+
+    el("recovery-incident-select")
+      .addEventListener(
+
+        "change",
+
+        () => {
+
+          el("recovery-manual")
+            .disabled =
+
+              !el(
+                "recovery-incident-select"
+              ).value ||
+
+              mutating;
+
+        }
+
+      );
+
+    loadRecovery();
+
+    setInterval(
+
+      () => {
+
+        if (!document.hidden) {
+
+          loadRecovery();
+
+        }
+
+      },
+
+      60000
+
+    );
+
+    document.addEventListener(
+
+      "visibilitychange",
+
+      () => {
+
+        if (!document.hidden) {
+
+          loadRecovery();
+
+        }
+
+      }
+
+    );
+
+    console.log(
+
+      "Recovery dashboard initialized successfully"
+
+    );
+
+  }
+
+
+  if (
+
+    document.readyState === "loading"
+
+  ) {
+
+    document.addEventListener(
+
+      "DOMContentLoaded",
+
+      initialize,
+
+      { once: true }
+
+    );
+
+  } else {
+
+    initialize();
+
+  }
+
+})();
