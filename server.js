@@ -51,6 +51,15 @@ async function saveMonitoringSnapshot(snapshot) {
   try {
 
     await client.query('BEGIN');
+    await client.query(
+  `
+    SELECT set_config(
+      'app.incident_actor',
+      'admin',
+      true
+    )
+  `
+);
 
     // Блокируем строку состояния обработки,
     // чтобы параллельные запросы выполнялись
