@@ -1353,43 +1353,28 @@ async function processMonitoringIncidents(
 }
 
 
+
 async function getMonitoringIncidents({
-
   status = 'all',
-
+  severity = 'all',
   limit = 50,
-
   offset = 0
-
 } = {}) {
 
   const query = `
     SELECT
-
       id,
-
       component,
-
       title,
-
       description,
-
       severity,
-
       status,
-
       opened_at,
-
       last_seen_at,
-
       acknowledged_at,
-
       resolved_at,
-
       occurrences,
-
       created_at,
-
       updated_at,
 
       ROUND(
@@ -1409,33 +1394,65 @@ async function getMonitoringIncidents({
       OR status = $1::text
     )
 
+    AND (
+      $2::text = 'all'
+      OR severity = $2::text
+    )
+
     ORDER BY opened_at DESC, id DESC
 
-    LIMIT $2::integer
+    LIMIT $3::integer
 
-    OFFSET $3::integer
+    OFFSET $4::integer
   `;
 
   const result = await pool.query(
-
     query,
-
-    [
-      status,
-      limit,
-      offset
-    ]
-
+    [status, severity, limit, offset]
   );
 
   return result.rows.map(row => ({
-
     ...row,
-
-    duration_minutes:
-      Number(row.duration_minutes)
-
+    duration_minutes: Number(row.duration_minutes)
   }));
+
+}
+
+
+// ========================================
+// ACKNOWLEDGE MONITORING INCIDENT
+// ========================================
+
+async function acknowledgeMonitoringIncident(id) {
+
+  const result = await pool.query(
+
+    `
+      UPDATE monitoring_incidents
+
+      SET
+
+        status = 'acknowledged',
+
+        acknowledged_at = GREATEST(
+          NOW(),
+          opened_at
+        ),
+
+        updated_at = NOW()
+
+      WHERE id = $1::bigint
+
+        AND status = 'open'
+
+      RETURNING *;
+    `,
+
+    [id]
+
+  );
+
+  return result.rows[0] || null;
 
 }
 
@@ -2118,79 +2135,70 @@ return res.json({
 );
 
 
+
 // ========================================
 // INCIDENT LIST API
 // ========================================
 
 app.get(
-
   '/api/monitoring/incidents',
-
   requireAdmin,
 
   async (req, res) => {
 
-    res.set(
-      'Cache-Control',
-      'no-store'
-    );
+    res.set('Cache-Control', 'no-store');
 
-    const status =
-      req.query.status ?? 'all';
+    const status = req.query.status ?? 'all';
+
+    const severity = req.query.severity ?? 'all';
 
     const allowedStatuses = [
-
       'all',
-
       'open',
-
       'acknowledged',
-
       'resolved'
+    ];
 
+    const allowedSeverities = [
+      'all',
+      'warning',
+      'critical'
     ];
 
     if (
       typeof status !== 'string' ||
       !allowedStatuses.includes(status)
     ) {
-
       return res.status(400).json({
-
         ok: false,
-
         error: 'Invalid incident status'
-
       });
-
     }
 
-    const rawLimit =
-      req.query.limit ?? '50';
+    if (
+      typeof severity !== 'string' ||
+      !allowedSeverities.includes(severity)
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid incident severity'
+      });
+    }
 
-    const rawOffset =
-      req.query.offset ?? '0';
+    const rawLimit = req.query.limit ?? '50';
+
+    const rawOffset = req.query.offset ?? '0';
 
     if (
-
       typeof rawLimit !== 'string' ||
-
       typeof rawOffset !== 'string' ||
-
       !/^\d+$/.test(rawLimit) ||
-
       !/^\d+$/.test(rawOffset)
-
     ) {
-
       return res.status(400).json({
-
         ok: false,
-
         error: 'Invalid pagination parameters'
-
       });
-
     }
 
     const limit = Number(rawLimit);
@@ -2198,26 +2206,142 @@ app.get(
     const offset = Number(rawOffset);
 
     if (
-
       !Number.isSafeInteger(limit) ||
-
       limit < 1 ||
-
       limit > 100 ||
-
       !Number.isSafeInteger(offset) ||
-
       offset < 0 ||
-
       offset > 100000
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Pagination parameters out of range'
+      });
+    }
 
+    try {
+
+      const [incidents, total] = await Promise.all([
+
+        getMonitoringIncidents({
+          status,
+          severity,
+          limit,
+          offset
+        }),
+
+        countMonitoringIncidents({
+          status,
+          severity
+        })
+
+      ]);
+
+      return res.json({
+        ok: true,
+        generated_at: new Date().toISOString(),
+        status,
+        severity,
+        limit,
+        offset,
+        count: incidents.length,
+        total,
+        incidents
+      });
+
+    } catch (error) {
+
+      console.error(
+        'Incident list API error:',
+        error.message
+      );
+
+      return res.status(503).json({
+        ok: false,
+        error: 'Incident service unavailable'
+      });
+
+    }
+
+  }
+);
+
+
+
+// ========================================
+// INCIDENT SUMMARY API
+// ========================================
+
+// ========================================
+// ACKNOWLEDGE INCIDENT API
+// ========================================
+
+app.post(
+
+  '/api/monitoring/incidents/:id/acknowledge',
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set('Cache-Control', 'no-store');
+
+    // Проверка источника запроса:
+    // разрешаем изменение только из нашей панели.
+
+    const allowedOrigin =
+      'https://aura-coffee-api-2lty.onrender.com';
+
+    const requestOrigin = req.get('Origin');
+
+    if (requestOrigin !== allowedOrigin) {
+
+      return res.status(403).json({
+
+        ok: false,
+
+        error: 'Forbidden request origin'
+
+      });
+
+    }
+
+    if (!req.is('application/json')) {
+
+      return res.status(415).json({
+
+        ok: false,
+
+        error: 'JSON content type required'
+
+      });
+
+    }
+
+    const id = req.params.id;
+
+    if (
+      typeof id !== 'string' ||
+      !/^[1-9]\d{0,18}$/.test(id)
     ) {
 
       return res.status(400).json({
 
         ok: false,
 
-        error: 'Pagination parameters out of range'
+        error: 'Invalid incident ID'
+
+      });
+
+    }
+
+    if (BigInt(id) > 9223372036854775807n) {
+
+      return res.status(400).json({
+
+        ok: false,
+
+        error: 'Incident ID out of range'
 
       });
 
@@ -2225,33 +2349,35 @@ app.get(
 
     try {
 
-      const incidents =
-        await getMonitoringIncidents({
+      const incident =
+        await acknowledgeMonitoringIncident(id);
 
-          status,
+      if (!incident) {
 
-          limit,
+        return res.status(409).json({
 
-          offset
+          ok: false,
+
+          error:
+            'Incident does not exist or is no longer open'
 
         });
+
+      }
+
+      console.log(
+
+        'Monitoring incident acknowledged:',
+
+        incident.id
+
+      );
 
       return res.json({
 
         ok: true,
 
-        generated_at:
-          new Date().toISOString(),
-
-        status,
-
-        limit,
-
-        offset,
-
-        count: incidents.length,
-
-        incidents
+        incident
 
       });
 
@@ -2259,7 +2385,7 @@ app.get(
 
       console.error(
 
-        'Incident list API error:',
+        'Incident acknowledge API error:',
 
         error.message
 
@@ -2278,11 +2404,6 @@ app.get(
   }
 
 );
-
-
-// ========================================
-// INCIDENT SUMMARY API
-// ========================================
 
 app.get(
 

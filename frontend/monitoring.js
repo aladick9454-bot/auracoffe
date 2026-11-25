@@ -2945,3 +2945,956 @@ if (
   initializeMonitoringDashboard();
 
 }
+
+
+// ========================================
+// INCIDENT MANAGEMENT DASHBOARD
+// ========================================
+
+(() => {
+
+  "use strict";
+
+  const INCIDENTS_API =
+    "/api/monitoring/incidents";
+
+  const INCIDENT_SUMMARY_API =
+    "/api/monitoring/incidents/summary";
+
+  const PAGE_SIZE = 10;
+
+  const REFRESH_INTERVAL = 60 * 1000;
+
+  const REQUEST_TIMEOUT = 15000;
+
+  let currentPage = 1;
+
+  let totalIncidents = 0;
+
+  let requestId = 0;
+
+  let controller = null;
+
+  let loading = false;
+
+  let actionInProgress = false;
+
+
+  const componentNames = {
+
+    system_health: "CRM",
+
+    availability: "Сайт и API",
+
+    performance_frontend: "Frontend",
+
+    performance_backend: "Backend",
+
+    daily_reports: "Ежедневные отчёты"
+
+  };
+
+
+  const statusNames = {
+
+    open: "Открыт",
+
+    acknowledged: "В работе",
+
+    resolved: "Устранён"
+
+  };
+
+
+  const severityNames = {
+
+    warning: "Предупреждение",
+
+    critical: "Критический"
+
+  };
+
+
+  const summaryElements = {
+
+    total_incidents: "incident-total",
+
+    active_incidents: "incident-active",
+
+    critical_active_incidents: "incident-critical",
+
+    open_incidents: "incident-open",
+
+    acknowledged_incidents: "incident-acknowledged",
+
+    resolved_incidents: "incident-resolved"
+
+  };
+
+
+  // ========================================
+  // DOM HELPERS
+  // ========================================
+
+  function getElement(id) {
+
+    return document.getElementById(id);
+
+  }
+
+
+  function setText(id, value) {
+
+    const element = getElement(id);
+
+    if (element) {
+
+      element.textContent = value;
+
+    }
+
+  }
+
+
+  function showMessage(message = "", isError = false) {
+
+    const element = getElement("incident-message");
+
+    if (!element) return;
+
+    element.textContent = message;
+
+    element.hidden = !message;
+
+    element.classList.toggle(
+      "is-error",
+      isError
+    );
+
+  }
+
+
+  function formatDate(value) {
+
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+
+      return "—";
+
+    }
+
+    return date.toLocaleString("ru-RU");
+
+  }
+
+
+  function formatDuration(value) {
+
+    if (value === null || value === undefined) {
+
+      return "—";
+
+    }
+
+    const minutes = Number(value);
+
+    if (!Number.isFinite(minutes) || minutes < 0) {
+
+      return "—";
+
+    }
+
+    const rounded = Math.floor(minutes);
+
+    const days = Math.floor(rounded / 1440);
+
+    const hours = Math.floor(
+      (rounded % 1440) / 60
+    );
+
+    const remainingMinutes = rounded % 60;
+
+    if (days > 0) {
+
+      return `${days} д. ${hours} ч. ${remainingMinutes} мин.`;
+
+    }
+
+    if (hours > 0) {
+
+      return `${hours} ч. ${remainingMinutes} мин.`;
+
+    }
+
+    if (rounded === 0) {
+
+      return "Менее минуты";
+
+    }
+
+    return `${remainingMinutes} мин.`;
+
+  }
+
+
+  // ========================================
+  // API REQUESTS
+  // ========================================
+
+  async function fetchIncidentJson(
+    url,
+    options = {}
+  ) {
+
+    const response = await fetch(url, {
+
+      ...options,
+
+      credentials: "same-origin",
+
+      cache: "no-store"
+
+    });
+
+    if (response.status === 401) {
+
+      window.location.href = "/admin/login";
+
+      throw new Error("Требуется авторизация");
+
+    }
+
+    if (!response.ok) {
+
+      throw new Error(
+        `Ошибка сервера: HTTP ${response.status}`
+      );
+
+    }
+
+    const data = await response.json();
+
+    if (!data || data.ok !== true) {
+
+      throw new Error("Некорректный ответ сервера");
+
+    }
+
+    return data;
+
+  }
+
+
+  // ========================================
+  // SUMMARY CARDS
+  // ========================================
+
+  function renderSummary(summary) {
+
+    for (const [key, elementId] of
+      Object.entries(summaryElements)) {
+
+      setText(
+        elementId,
+        summary[key] ?? "—"
+      );
+
+    }
+
+  }
+
+
+  function resetSummary() {
+
+    for (const elementId of
+      Object.values(summaryElements)) {
+
+      setText(elementId, "—");
+
+    }
+
+  }
+
+
+  // ========================================
+  // TABLE HELPERS
+  // ========================================
+
+  function createTextCell(value) {
+
+    const cell = document.createElement("td");
+
+    cell.textContent = value ?? "—";
+
+    return cell;
+
+  }
+
+
+  function createBadgeCell(value, labels) {
+
+    const cell = document.createElement("td");
+
+    const badge = document.createElement("span");
+
+    badge.className = "incident-badge";
+
+    if (Object.hasOwn(labels, value)) {
+
+      badge.classList.add(
+        `incident-badge-${value}`
+      );
+
+      badge.textContent = labels[value];
+
+    } else {
+
+      badge.textContent = "Неизвестно";
+
+    }
+
+    cell.appendChild(badge);
+
+    return cell;
+
+  }
+
+
+  function renderEmptyTable(message) {
+
+    const tbody = getElement("incident-table-body");
+
+    if (!tbody) return;
+
+    const row = document.createElement("tr");
+
+    const cell = document.createElement("td");
+
+    cell.colSpan = 9;
+
+    cell.textContent = message;
+
+    row.appendChild(cell);
+
+    tbody.replaceChildren(row);
+
+  }
+
+
+  // ========================================
+  // RENDER INCIDENT TABLE
+  // ========================================
+
+  function renderIncidentTable(incidents) {
+
+    const tbody = getElement("incident-table-body");
+
+    if (!tbody) return;
+
+    if (incidents.length === 0) {
+
+      renderEmptyTable("Инциденты не найдены");
+
+      return;
+
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    for (const incident of incidents) {
+
+      const row = document.createElement("tr");
+
+      row.appendChild(
+        createTextCell(`#${incident.id}`)
+      );
+
+      row.appendChild(
+        createTextCell(incident.title)
+      );
+
+      row.appendChild(
+        createTextCell(
+          componentNames[incident.component]
+          || incident.component
+        )
+      );
+
+      row.appendChild(
+        createBadgeCell(
+          incident.severity,
+          severityNames
+        )
+      );
+
+      row.appendChild(
+        createBadgeCell(
+          incident.status,
+          statusNames
+        )
+      );
+
+      row.appendChild(
+        createTextCell(
+          formatDate(incident.opened_at)
+        )
+      );
+
+      row.appendChild(
+        createTextCell(
+          formatDuration(incident.duration_minutes)
+        )
+      );
+
+      row.appendChild(
+        createTextCell(incident.occurrences)
+      );
+
+
+      const actionCell = document.createElement("td");
+
+      if (incident.status === "open") {
+
+        const button = document.createElement("button");
+
+        button.type = "button";
+
+        button.className = "incident-action-btn";
+
+        button.textContent = "Принять в работу";
+
+        button.dataset.incidentId = String(incident.id);
+
+        button.disabled = actionInProgress;
+
+        actionCell.appendChild(button);
+
+      } else {
+
+        actionCell.textContent = "—";
+
+      }
+
+      row.appendChild(actionCell);
+
+      fragment.appendChild(row);
+
+    }
+
+    tbody.replaceChildren(fragment);
+
+  }
+
+
+  // ========================================
+  // PAGINATION
+  // ========================================
+
+  function getTotalPages() {
+
+    return Math.max(
+      1,
+      Math.ceil(totalIncidents / PAGE_SIZE)
+    );
+
+  }
+
+
+  function updatePagination() {
+
+    const totalPages = getTotalPages();
+
+    setText(
+      "incident-page-info",
+      `Страница ${currentPage} из ${totalPages} · Всего: ${totalIncidents}`
+    );
+
+    const prev = getElement("incident-prev-page");
+
+    const next = getElement("incident-next-page");
+
+    if (prev) {
+
+      prev.disabled =
+        loading ||
+        actionInProgress ||
+        currentPage <= 1;
+
+    }
+
+    if (next) {
+
+      next.disabled =
+        loading ||
+        actionInProgress ||
+        currentPage >= totalPages;
+
+    }
+
+  }
+
+
+  // ========================================
+  // LOAD INCIDENT DASHBOARD
+  // ========================================
+
+  async function loadIncidents(force = false) {
+
+    if (actionInProgress) return;
+
+    if (document.hidden && !force) return;
+
+    if (loading && !force) return;
+
+    const currentRequestId = ++requestId;
+
+    if (controller) {
+
+      controller.abort();
+
+    }
+
+    const localController = new AbortController();
+
+    controller = localController;
+
+    loading = true;
+
+    const refreshButton = getElement(
+      "incident-refresh-btn"
+    );
+
+    if (refreshButton) {
+
+      refreshButton.disabled = true;
+
+    }
+
+    updatePagination();
+
+    const timeout = setTimeout(
+      () => localController.abort(),
+      REQUEST_TIMEOUT
+    );
+
+    try {
+
+      const status =
+        getElement("incident-status-filter")?.value
+        || "all";
+
+      const severity =
+        getElement("incident-severity-filter")?.value
+        || "all";
+
+      const offset = (currentPage - 1) * PAGE_SIZE;
+
+      const params = new URLSearchParams({
+
+        status,
+
+        severity,
+
+        limit: String(PAGE_SIZE),
+
+        offset: String(offset)
+
+      });
+
+      const [summaryResult, listResult] =
+        await Promise.all([
+
+          fetchIncidentJson(
+            INCIDENT_SUMMARY_API,
+            { signal: localController.signal }
+          ),
+
+          fetchIncidentJson(
+            `${INCIDENTS_API}?${params.toString()}`,
+            { signal: localController.signal }
+          )
+
+        ]);
+
+      if (currentRequestId !== requestId) {
+
+        return;
+
+      }
+
+      if (
+        !summaryResult.summary ||
+        !Array.isArray(listResult.incidents) ||
+        !Number.isSafeInteger(listResult.total) ||
+        listResult.total < 0
+      ) {
+
+        throw new Error("Некорректные данные инцидентов");
+
+      }
+
+      totalIncidents = listResult.total;
+
+      if (currentPage > getTotalPages()) {
+
+        currentPage = getTotalPages();
+
+        loading = false;
+
+        return loadIncidents(true);
+
+      }
+
+      renderSummary(summaryResult.summary);
+
+      renderIncidentTable(listResult.incidents);
+
+      showMessage();
+
+      setText(
+        "incident-updated",
+        `Обновлено: ${new Date().toLocaleString("ru-RU")}`
+      );
+
+      console.log(
+        "Incident dashboard loaded:",
+        listResult.total
+      );
+
+    } catch (error) {
+
+      if (currentRequestId !== requestId) {
+
+        return;
+
+      }
+
+      resetSummary();
+
+      totalIncidents = 0;
+
+      currentPage = 1;
+
+      renderEmptyTable(
+        "Не удалось загрузить инциденты"
+      );
+
+      showMessage(
+        error.name === "AbortError"
+          ? "Превышено время ожидания ответа"
+          : "Не удалось загрузить данные инцидентов",
+        true
+      );
+
+      setText(
+        "incident-updated",
+        "Ошибка обновления"
+      );
+
+      console.error(
+        "Incident dashboard error:",
+        error
+      );
+
+    } finally {
+
+      clearTimeout(timeout);
+
+      if (currentRequestId === requestId) {
+
+        controller = null;
+
+        loading = false;
+
+        if (refreshButton) {
+
+          refreshButton.disabled = false;
+
+        }
+
+        updatePagination();
+
+      }
+
+    }
+
+  }
+
+
+  // ========================================
+  // ACKNOWLEDGE INCIDENT
+  // ========================================
+
+  async function acknowledgeIncident(id) {
+
+    if (actionInProgress) return;
+
+    if (!/^[1-9]\d*$/.test(String(id))) {
+
+      showMessage(
+        "Некорректный номер инцидента",
+        true
+      );
+
+      return;
+
+    }
+
+    const confirmed = window.confirm(
+      `Принять инцидент #${id} в работу?`
+    );
+
+    if (!confirmed) return;
+
+    actionInProgress = true;
+
+    requestId++;
+
+    if (controller) {
+
+      controller.abort();
+
+      controller = null;
+
+    }
+
+    loading = false;
+
+    updatePagination();
+
+    const refreshButton =
+      getElement("incident-refresh-btn");
+
+    if (refreshButton) {
+
+      refreshButton.disabled = true;
+
+    }
+
+    const actionButtons = document.querySelectorAll(
+      ".incident-action-btn"
+    );
+
+    actionButtons.forEach(button => {
+
+      button.disabled = true;
+
+    });
+
+    const actionController = new AbortController();
+
+    const timeout = setTimeout(
+      () => actionController.abort(),
+      REQUEST_TIMEOUT
+    );
+
+    let actionError = "";
+
+    try {
+
+      await fetchIncidentJson(
+
+        `${INCIDENTS_API}/${encodeURIComponent(id)}/acknowledge`,
+
+        {
+
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json"
+          },
+
+          body: JSON.stringify({}),
+
+          signal: actionController.signal
+
+        }
+
+      );
+
+      console.log(
+        "Incident acknowledged:",
+        id
+      );
+
+    } catch (error) {
+
+      actionError =
+        "Не удалось подтвердить инцидент. Проверь его текущий статус.";
+
+      console.error(
+        "Incident acknowledge error:",
+        error
+      );
+
+    } finally {
+
+      clearTimeout(timeout);
+
+      actionInProgress = false;
+
+      if (refreshButton) {
+
+        refreshButton.disabled = false;
+
+      }
+
+      actionButtons.forEach(button => {
+
+        button.disabled = false;
+
+      });
+
+      await loadIncidents(true);
+
+      if (actionError) {
+
+        showMessage(actionError, true);
+
+      }
+
+    }
+
+  }
+
+
+  // ========================================
+  // INITIALIZATION
+  // ========================================
+
+  function initializeIncidentDashboard() {
+
+    const section = getElement("incident-section");
+
+    if (!section) return;
+
+    if (section.dataset.initialized === "true") {
+
+      return;
+
+    }
+
+    section.dataset.initialized = "true";
+
+
+    getElement("incident-refresh-btn")
+      ?.addEventListener("click", () => {
+
+        loadIncidents(true);
+
+      });
+
+
+    getElement("incident-status-filter")
+      ?.addEventListener("change", () => {
+
+        currentPage = 1;
+
+        loadIncidents(true);
+
+      });
+
+
+    getElement("incident-severity-filter")
+      ?.addEventListener("change", () => {
+
+        currentPage = 1;
+
+        loadIncidents(true);
+
+      });
+
+
+    getElement("incident-prev-page")
+      ?.addEventListener("click", () => {
+
+        if (currentPage > 1 && !actionInProgress) {
+
+          currentPage--;
+
+          loadIncidents(true);
+
+        }
+
+      });
+
+
+    getElement("incident-next-page")
+      ?.addEventListener("click", () => {
+
+        if (
+          currentPage < getTotalPages() &&
+          !actionInProgress
+        ) {
+
+          currentPage++;
+
+          loadIncidents(true);
+
+        }
+
+      });
+
+
+    getElement("incident-table-body")
+      ?.addEventListener("click", event => {
+
+        const button = event.target.closest(
+          ".incident-action-btn"
+        );
+
+        if (!button || button.disabled) return;
+
+        acknowledgeIncident(
+          button.dataset.incidentId
+        );
+
+      });
+
+
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+
+        if (!document.hidden) {
+
+          loadIncidents();
+
+        }
+
+      }
+    );
+
+
+    loadIncidents(true);
+
+    setInterval(
+      () => loadIncidents(),
+      REFRESH_INTERVAL
+    );
+
+    console.log(
+      "Incident dashboard initialized successfully"
+    );
+
+  }
+
+
+  if (document.readyState === "loading") {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeIncidentDashboard,
+      { once: true }
+    );
+
+  } else {
+
+    initializeIncidentDashboard();
+
+  }
+
+})();

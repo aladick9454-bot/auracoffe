@@ -625,6 +625,205 @@
 
     </section>
 
+<!-- ========================================
+     INCIDENT MANAGEMENT
+========================================= -->
+
+<section class="incident-section" id="incident-section">
+
+  <div class="incident-header">
+
+    <div>
+      <h2>Управление инцидентами</h2>
+
+      <p class="incident-subtitle">
+        Обнаружение и устранение проблем бизнеса
+      </p>
+    </div>
+
+    <button
+      type="button"
+      id="incident-refresh-btn"
+      class="incident-button"
+    >
+      ↻ Обновить
+    </button>
+
+  </div>
+
+  <div
+    id="incident-message"
+    class="incident-message"
+    role="status"
+    hidden
+  ></div>
+
+  <!-- INCIDENT SUMMARY START -->
+
+
+<div class="incident-summary-grid">
+
+  <div class="incident-summary-card">
+    <h3>Всего инцидентов</h3>
+    <strong id="incident-total">—</strong>
+  </div>
+
+  <div class="incident-summary-card">
+    <h3>Активные</h3>
+    <strong
+      id="incident-active"
+      class="incident-color-warning"
+    >—</strong>
+  </div>
+
+  <div class="incident-summary-card">
+    <h3>Критические активные</h3>
+    <strong
+      id="incident-critical"
+      class="incident-color-critical"
+    >—</strong>
+  </div>
+
+  <div class="incident-summary-card">
+    <h3>Открытые</h3>
+    <strong
+      id="incident-open"
+      class="incident-color-warning"
+    >—</strong>
+  </div>
+
+  <div class="incident-summary-card">
+    <h3>В работе</h3>
+    <strong
+      id="incident-acknowledged"
+      class="incident-color-info"
+    >—</strong>
+  </div>
+
+  <div class="incident-summary-card">
+    <h3>Устранённые</h3>
+    <strong
+      id="incident-resolved"
+      class="incident-color-success"
+    >—</strong>
+  </div>
+
+</div>
+
+
+  <!-- INCIDENT SUMMARY END -->
+
+
+  <!-- INCIDENT TABLE START -->
+
+
+<div class="incident-filters">
+
+  <div class="incident-filter-group">
+
+    <label for="incident-status-filter">
+      Статус
+    </label>
+
+    <select id="incident-status-filter">
+      <option value="all">Все статусы</option>
+      <option value="open">Открытые</option>
+      <option value="acknowledged">В работе</option>
+      <option value="resolved">Устранённые</option>
+    </select>
+
+  </div>
+
+  <div class="incident-filter-group">
+
+    <label for="incident-severity-filter">
+      Критичность
+    </label>
+
+    <select id="incident-severity-filter">
+      <option value="all">Все уровни</option>
+      <option value="warning">Предупреждения</option>
+      <option value="critical">Критические</option>
+    </select>
+
+  </div>
+
+</div>
+
+
+<div class="incident-table-wrapper">
+
+  <table class="incident-table">
+
+    <thead>
+
+      <tr>
+        <th>ID</th>
+        <th>Инцидент</th>
+        <th>Компонент</th>
+        <th>Критичность</th>
+        <th>Статус</th>
+        <th>Обнаружен</th>
+        <th>Продолжительность</th>
+        <th>Проверок</th>
+        <th>Действие</th>
+      </tr>
+
+    </thead>
+
+    <tbody id="incident-table-body">
+
+      <tr>
+        <td colspan="9">
+          Ожидание загрузки...
+        </td>
+      </tr>
+
+    </tbody>
+
+  </table>
+
+</div>
+
+
+<div class="incident-pagination">
+
+  <button
+    type="button"
+    id="incident-prev-page"
+    class="incident-button"
+    disabled
+  >
+    ← Назад
+  </button>
+
+  <span id="incident-page-info">
+    Страница 1
+  </span>
+
+  <button
+    type="button"
+    id="incident-next-page"
+    class="incident-button"
+    disabled
+  >
+    Вперёд →
+  </button>
+
+</div>
+
+  <!-- INCIDENT TABLE END -->
+
+  <p
+    id="incident-updated"
+    class="incident-updated"
+  >
+    Ожидание загрузки...
+  </p>
+
+</section>
+
+
   </main>
 
 

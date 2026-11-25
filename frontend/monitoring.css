@@ -797,3 +797,290 @@ footer {
   opacity: 0.5;
   cursor: wait;
 }
+
+
+/* ========================================
+   INCIDENT MANAGEMENT
+======================================== */
+
+.incident-section {
+  margin-top: 40px;
+  padding: 28px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 16px;
+  color: #f9fafb;
+}
+
+.incident-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.incident-header h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  color: #f5c76b;
+}
+
+.incident-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.incident-button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #fbbf24;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.incident-button:hover {
+  background: #f59e0b;
+}
+
+.incident-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.incident-message {
+  padding: 14px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: #1f2937;
+  color: #d1d5db;
+}
+
+.incident-message.is-error {
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.incident-message[hidden] {
+  display: none;
+}
+
+.incident-updated {
+  margin-top: 20px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .incident-section {
+    padding: 16px;
+  }
+
+  .incident-header {
+    align-items: flex-start;
+  }
+}
+
+
+/* INCIDENT SUMMARY CARDS */
+
+.incident-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.incident-summary-card {
+  padding: 22px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+}
+
+.incident-summary-card h3 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+.incident-summary-card strong {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.incident-color-warning {
+  color: #fbbf24;
+}
+
+.incident-color-critical {
+  color: #f87171;
+}
+
+.incident-color-info {
+  color: #60a5fa;
+}
+
+.incident-color-success {
+  color: #4ade80;
+}
+
+@media (max-width: 900px) {
+  .incident-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 500px) {
+  .incident-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* INCIDENT FILTERS */
+
+.incident-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.incident-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.incident-filter-group label {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.incident-filter-group select {
+  min-width: 180px;
+  padding: 10px 14px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  color: #f9fafb;
+  font-size: 14px;
+}
+
+
+/* INCIDENT TABLE */
+
+.incident-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #374151;
+  border-radius: 10px;
+}
+
+.incident-table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.incident-table th {
+  padding: 14px;
+  text-align: left;
+  background: #1f2937;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.incident-table td {
+  padding: 14px;
+  border-top: 1px solid #374151;
+  color: #e5e7eb;
+  vertical-align: middle;
+}
+
+.incident-table tbody tr:hover {
+  background: #1f2937;
+}
+
+.incident-table td:nth-child(2) {
+  min-width: 200px;
+  font-weight: 500;
+}
+
+
+/* INCIDENT BADGES */
+
+.incident-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.incident-badge-warning,
+.incident-badge-open {
+  background: #422006;
+  color: #fbbf24;
+}
+
+.incident-badge-critical {
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.incident-badge-acknowledged {
+  background: #172554;
+  color: #93c5fd;
+}
+
+.incident-badge-resolved {
+  background: #052e16;
+  color: #86efac;
+}
+
+
+/* INCIDENT PAGINATION */
+
+.incident-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+#incident-page-info {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.incident-action-btn {
+  padding: 8px 12px;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  background: transparent;
+  color: #93c5fd;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.incident-action-btn:hover {
+  background: #1e3a8a;
+}
+
+.incident-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
