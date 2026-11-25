@@ -712,6 +712,148 @@ async function getMonitoringComparison(hours) {
 }
 
 
+// ========================================
+// INCIDENT MANAGEMENT
+// ========================================
+
+async function getMonitoringIncidents({
+
+  status = 'all',
+
+  limit = 50,
+
+  offset = 0
+
+} = {}) {
+
+  const query = `
+    SELECT
+
+      id,
+
+      component,
+
+      title,
+
+      description,
+
+      severity,
+
+      status,
+
+      opened_at,
+
+      last_seen_at,
+
+      acknowledged_at,
+
+      resolved_at,
+
+      occurrences,
+
+      created_at,
+
+      updated_at,
+
+      ROUND(
+        EXTRACT(
+          EPOCH FROM (
+            COALESCE(resolved_at, NOW())
+            - opened_at
+          )
+        ) / 60,
+        2
+      ) AS duration_minutes
+
+    FROM monitoring_incidents
+
+    WHERE (
+      $1::text = 'all'
+      OR status = $1::text
+    )
+
+    ORDER BY opened_at DESC, id DESC
+
+    LIMIT $2::integer
+
+    OFFSET $3::integer
+  `;
+
+  const result = await pool.query(
+
+    query,
+
+    [
+      status,
+      limit,
+      offset
+    ]
+
+  );
+
+  return result.rows.map(row => ({
+
+    ...row,
+
+    duration_minutes:
+      Number(row.duration_minutes)
+
+  }));
+
+}
+
+
+async function getMonitoringIncidentSummary() {
+
+  const query = `
+    SELECT
+
+      COUNT(*)::integer
+        AS total_incidents,
+
+      COUNT(*) FILTER (
+        WHERE status = 'open'
+      )::integer
+        AS open_incidents,
+
+      COUNT(*) FILTER (
+        WHERE status = 'acknowledged'
+      )::integer
+        AS acknowledged_incidents,
+
+      COUNT(*) FILTER (
+        WHERE status = 'resolved'
+      )::integer
+        AS resolved_incidents,
+
+      COUNT(*) FILTER (
+        WHERE status IN (
+          'open',
+          'acknowledged'
+        )
+      )::integer
+        AS active_incidents,
+
+      COUNT(*) FILTER (
+        WHERE severity = 'critical'
+        AND status IN (
+          'open',
+          'acknowledged'
+        )
+      )::integer
+        AS critical_active_incidents
+
+    FROM monitoring_incidents
+  `;
+
+  const result =
+    await pool.query(query);
+
+  return result.rows[0];
+
+}
+
+
 async function getMonitoringHistory(hours) {
   const query = `
     SELECT
@@ -1337,6 +1479,227 @@ return res.json({
     }
   }
 );
+
+
+// ========================================
+// INCIDENT LIST API
+// ========================================
+
+app.get(
+
+  '/api/monitoring/incidents',
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set(
+      'Cache-Control',
+      'no-store'
+    );
+
+    const status =
+      req.query.status ?? 'all';
+
+    const allowedStatuses = [
+
+      'all',
+
+      'open',
+
+      'acknowledged',
+
+      'resolved'
+
+    ];
+
+    if (
+      typeof status !== 'string' ||
+      !allowedStatuses.includes(status)
+    ) {
+
+      return res.status(400).json({
+
+        ok: false,
+
+        error: 'Invalid incident status'
+
+      });
+
+    }
+
+    const rawLimit =
+      req.query.limit ?? '50';
+
+    const rawOffset =
+      req.query.offset ?? '0';
+
+    if (
+
+      typeof rawLimit !== 'string' ||
+
+      typeof rawOffset !== 'string' ||
+
+      !/^\d+$/.test(rawLimit) ||
+
+      !/^\d+$/.test(rawOffset)
+
+    ) {
+
+      return res.status(400).json({
+
+        ok: false,
+
+        error: 'Invalid pagination parameters'
+
+      });
+
+    }
+
+    const limit = Number(rawLimit);
+
+    const offset = Number(rawOffset);
+
+    if (
+
+      !Number.isSafeInteger(limit) ||
+
+      limit < 1 ||
+
+      limit > 100 ||
+
+      !Number.isSafeInteger(offset) ||
+
+      offset < 0 ||
+
+      offset > 100000
+
+    ) {
+
+      return res.status(400).json({
+
+        ok: false,
+
+        error: 'Pagination parameters out of range'
+
+      });
+
+    }
+
+    try {
+
+      const incidents =
+        await getMonitoringIncidents({
+
+          status,
+
+          limit,
+
+          offset
+
+        });
+
+      return res.json({
+
+        ok: true,
+
+        generated_at:
+          new Date().toISOString(),
+
+        status,
+
+        limit,
+
+        offset,
+
+        count: incidents.length,
+
+        incidents
+
+      });
+
+    } catch (error) {
+
+      console.error(
+
+        'Incident list API error:',
+
+        error.message
+
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error: 'Incident service unavailable'
+
+      });
+
+    }
+
+  }
+
+);
+
+
+// ========================================
+// INCIDENT SUMMARY API
+// ========================================
+
+app.get(
+
+  '/api/monitoring/incidents/summary',
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set(
+      'Cache-Control',
+      'no-store'
+    );
+
+    try {
+
+      const summary =
+        await getMonitoringIncidentSummary();
+
+      return res.json({
+
+        ok: true,
+
+        generated_at:
+          new Date().toISOString(),
+
+        summary
+
+      });
+
+    } catch (error) {
+
+      console.error(
+
+        'Incident summary API error:',
+
+        error.message
+
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error: 'Incident summary unavailable'
+
+      });
+
+    }
+
+  }
+
+);
+
 
 app.get(
   '/api/monitoring/history',
