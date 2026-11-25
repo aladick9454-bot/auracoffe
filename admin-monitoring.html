@@ -838,5 +838,70 @@
 
   <script src="/admin/monitoring.js"></script>
 
+<!-- INCIDENT DETAILS MODAL -->
+
+<dialog
+  id="incident-details-modal"
+  class="incident-details-modal"
+  aria-labelledby="incident-details-heading"
+>
+
+  <div class="incident-details-header">
+
+    <h2 id="incident-details-heading">
+      Информация об инциденте
+    </h2>
+
+    <button
+      type="button"
+      id="incident-details-close"
+      class="incident-details-button"
+      aria-label="Закрыть"
+    >
+      ×
+    </button>
+
+  </div>
+
+  <p
+    id="incident-details-message"
+    role="status"
+  ></p>
+
+  <div id="incident-details-content" hidden>
+
+    <h3 id="incident-details-title">—</h3>
+
+    <div
+      id="incident-details-grid"
+      class="incident-details-grid"
+    ></div>
+
+    <div class="incident-details-header">
+
+      <h3>История событий</h3>
+
+      <span id="incident-events-count">0</span>
+
+    </div>
+
+    <div id="incident-events-list"></div>
+
+  </div>
+
+  <div class="incident-details-footer">
+
+    <button
+      type="button"
+      id="incident-details-refresh"
+      class="incident-details-button"
+    >
+      ↻ Обновить историю
+    </button>
+
+  </div>
+
+</dialog>
+
 </body>
 </html>

@@ -3355,7 +3355,18 @@ if (
 
 
       const actionCell = document.createElement("td");
+      const detailsButton = document.createElement("button");
 
+      detailsButton.type = "button";
+
+      detailsButton.className = "incident-details-button";
+
+      detailsButton.textContent = "Подробнее";
+
+      detailsButton.dataset.detailsIncidentId =
+        String(incident.id);
+
+      actionCell.appendChild(detailsButton);
       if (incident.status === "open") {
 
         const button = document.createElement("button");
@@ -3894,6 +3905,662 @@ if (
   } else {
 
     initializeIncidentDashboard();
+
+  }
+
+})();
+
+
+// ========================================
+// INCIDENT DETAILS MODULE
+// ========================================
+
+;(() => {
+
+  "use strict";
+
+  const API_URL = "/api/monitoring/incidents";
+
+  let selectedId = null;
+  let controller = null;
+  let requestId = 0;
+
+  const statusNames = {
+    open: "Открыт",
+    acknowledged: "В работе",
+    resolved: "Устранён"
+  };
+
+  const severityNames = {
+    warning: "Предупреждение",
+    critical: "Критический"
+  };
+
+  const componentNames = {
+    system_health: "CRM",
+    availability: "Сайт и API",
+    performance_frontend: "Frontend",
+    performance_backend: "Backend",
+    daily_reports: "Ежедневные отчёты"
+  };
+
+  const actorNames = {
+    system: "Система мониторинга",
+    admin: "Администратор",
+    unknown: "Неизвестный источник"
+  };
+
+  const eventNames = {
+    opened: "Инцидент обнаружен",
+    repeated: "Повторное обнаружение",
+    acknowledged: "Принят в работу",
+    resolved: "Инцидент устранён",
+    severity_changed: "Изменение критичности",
+    status_changed: "Изменение статуса"
+  };
+
+
+  function getElement(id) {
+    return document.getElementById(id);
+  }
+
+
+  function setText(id, value) {
+
+    const element = getElement(id);
+
+    if (element) {
+      element.textContent = value ?? "—";
+    }
+
+  }
+
+
+  function formatDate(value) {
+
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime())
+      ? "—"
+      : date.toLocaleString("ru-RU");
+
+  }
+
+
+  function formatDuration(value) {
+
+    if (value === null || value === undefined) {
+      return "—";
+    }
+
+    const minutes = Number(value);
+
+    if (!Number.isFinite(minutes) || minutes < 0) {
+      return "—";
+    }
+
+    const total = Math.floor(minutes);
+
+    const days = Math.floor(total / 1440);
+
+    const hours = Math.floor(
+      (total % 1440) / 60
+    );
+
+    const rest = total % 60;
+
+    if (days > 0) {
+      return `${days} д. ${hours} ч. ${rest} мин.`;
+    }
+
+    if (hours > 0) {
+      return `${hours} ч. ${rest} мин.`;
+    }
+
+    return total === 0
+      ? "Менее минуты"
+      : `${rest} мин.`;
+
+  }
+
+
+  function showMessage(message, isError = false) {
+
+    const element =
+      getElement("incident-details-message");
+
+    if (!element) return;
+
+    element.textContent = message;
+
+    element.classList.toggle(
+      "is-error",
+      isError
+    );
+
+  }
+
+
+  function createCard(label, value) {
+
+    const card = document.createElement("div");
+
+    card.className = "incident-detail-card";
+
+    const name = document.createElement("span");
+
+    name.textContent = label;
+
+    const text = document.createElement("strong");
+
+    text.textContent = value ?? "—";
+
+    card.append(name, text);
+
+    return card;
+
+  }
+
+
+  function formatMetadata(metadata) {
+
+    if (!metadata || typeof metadata !== "object") {
+      return "";
+    }
+
+    const lines = [];
+
+    if (
+      metadata.old_status !== undefined &&
+      metadata.new_status !== undefined
+    ) {
+
+      lines.push(
+        `Статус: ${
+          statusNames[metadata.old_status]
+          || metadata.old_status
+        } → ${
+          statusNames[metadata.new_status]
+          || metadata.new_status
+        }`
+      );
+
+    }
+
+    if (
+      metadata.old_occurrences !== undefined &&
+      metadata.new_occurrences !== undefined
+    ) {
+
+      lines.push(
+        `Обнаружений: ${metadata.old_occurrences} → ${metadata.new_occurrences}`
+      );
+
+    }
+
+    if (
+      metadata.old_severity !== undefined &&
+      metadata.new_severity !== undefined
+    ) {
+
+      lines.push(
+        `Критичность: ${
+          severityNames[metadata.old_severity]
+          || metadata.old_severity
+        } → ${
+          severityNames[metadata.new_severity]
+          || metadata.new_severity
+        }`
+      );
+
+    }
+
+    if (metadata.occurrences !== undefined) {
+
+      lines.push(
+        `Обнаружений: ${metadata.occurrences}`
+      );
+
+    }
+
+    return lines.join("\n");
+
+  }
+
+
+  function renderEvents(events, total) {
+
+    const container =
+      getElement("incident-events-list");
+
+    container.replaceChildren();
+
+    setText(
+      "incident-events-count",
+      `Показано ${events.length} из ${total}`
+    );
+
+    if (!events.length) {
+
+      const empty = document.createElement("p");
+
+      empty.textContent =
+        "События пока отсутствуют. История записывается с момента подключения журнала.";
+
+      container.appendChild(empty);
+
+      return;
+
+    }
+
+    const fragment =
+      document.createDocumentFragment();
+
+    for (const event of events) {
+
+      const item = document.createElement("div");
+
+      item.className = "incident-event";
+
+      if (Object.hasOwn(eventNames, event.event_type)) {
+
+        item.classList.add(
+          `incident-event-${event.event_type}`
+        );
+
+      }
+
+      const title = document.createElement("h4");
+
+      title.textContent =
+        eventNames[event.event_type]
+        || "Событие";
+
+      const time = document.createElement("p");
+
+      time.className = "incident-event-time";
+
+      time.textContent =
+        `${formatDate(event.created_at)} · ${
+          actorNames[event.actor]
+          || "Неизвестный источник"
+        }`;
+
+      const description =
+        document.createElement("p");
+
+      description.className =
+        "incident-event-description";
+
+      description.textContent =
+        event.message || "—";
+
+      item.append(title, time, description);
+
+      const metadataText =
+        formatMetadata(event.metadata);
+
+      if (metadataText) {
+
+        const metadata =
+          document.createElement("div");
+
+        metadata.className =
+          "incident-event-metadata";
+
+        metadata.textContent = metadataText;
+
+        item.appendChild(metadata);
+
+      }
+
+      fragment.appendChild(item);
+
+    }
+
+    container.appendChild(fragment);
+
+  }
+
+
+  function renderDetails(data) {
+
+    const incident = data.incident;
+
+    setText(
+      "incident-details-heading",
+      `Инцидент #${incident.id}`
+    );
+
+    setText(
+      "incident-details-title",
+      incident.title
+      || componentNames[incident.component]
+      || incident.component
+    );
+
+    const grid =
+      getElement("incident-details-grid");
+
+    grid.replaceChildren();
+
+    const fields = [
+
+      [
+        "Компонент",
+        componentNames[incident.component]
+        || incident.component
+      ],
+
+      [
+        "Статус",
+        statusNames[incident.status]
+        || incident.status
+      ],
+
+      [
+        "Критичность",
+        severityNames[incident.severity]
+        || incident.severity
+      ],
+
+      [
+        "Продолжительность",
+        formatDuration(incident.duration_minutes)
+      ],
+
+      [
+        "Количество обнаружений",
+        incident.occurrences
+      ],
+
+      [
+        "Первое обнаружение",
+        formatDate(incident.opened_at)
+      ],
+
+      [
+        "Принят в работу",
+        formatDate(incident.acknowledged_at)
+      ],
+
+      [
+        "Устранён",
+        formatDate(incident.resolved_at)
+      ]
+
+    ];
+
+    for (const [label, value] of fields) {
+
+      grid.appendChild(
+        createCard(label, value)
+      );
+
+    }
+
+    renderEvents(
+      data.events,
+      data.events_total
+    );
+
+    getElement(
+      "incident-details-content"
+    ).hidden = false;
+
+  }
+
+
+  async function loadDetails(id) {
+
+    const currentRequest = ++requestId;
+
+    if (controller) {
+      controller.abort();
+    }
+
+    const localController =
+      new AbortController();
+
+    controller = localController;
+
+    const refreshButton =
+      getElement("incident-details-refresh");
+
+    refreshButton.disabled = true;
+
+    getElement(
+      "incident-details-content"
+    ).hidden = true;
+
+    showMessage("Загрузка истории...");
+
+    const timeout = setTimeout(
+      () => localController.abort(),
+      15000
+    );
+
+    try {
+
+      const response = await fetch(
+
+        `${API_URL}/${encodeURIComponent(id)}`,
+
+        {
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: localController.signal
+        }
+
+      );
+
+      if (currentRequest !== requestId) {
+        return;
+      }
+
+      if (response.status === 401) {
+
+        window.location.href = "/admin/login";
+
+        return;
+
+      }
+
+      if (!response.ok) {
+
+        throw new Error(
+          `Ошибка сервера: HTTP ${response.status}`
+        );
+
+      }
+
+      const data = await response.json();
+
+      if (currentRequest !== requestId) {
+        return;
+      }
+
+      if (
+        data.ok !== true ||
+        !data.incident ||
+        !Array.isArray(data.events) ||
+        !Number.isSafeInteger(data.events_total) ||
+        data.events_total < data.events.length ||
+        String(data.incident.id) !== String(id)
+      ) {
+
+        throw new Error(
+          "Некорректные данные инцидента"
+        );
+
+      }
+
+      renderDetails(data);
+
+      showMessage("");
+
+      console.log(
+        "Incident details loaded:",
+        id,
+        data.events.length
+      );
+
+    } catch (error) {
+
+      if (currentRequest !== requestId) {
+        return;
+      }
+
+      showMessage(
+
+        error.name === "AbortError"
+          ? "Превышено время ожидания ответа"
+          : error.message,
+
+        true
+
+      );
+
+      console.error(
+        "Incident details error:",
+        error
+      );
+
+    } finally {
+
+      clearTimeout(timeout);
+
+      if (currentRequest === requestId) {
+
+        controller = null;
+
+        refreshButton.disabled = false;
+
+      }
+
+    }
+
+  }
+
+
+  function openDetails(id) {
+
+    if (!/^[1-9]\d{0,18}$/.test(String(id))) {
+      return;
+    }
+
+    const modal =
+      getElement("incident-details-modal");
+
+    selectedId = String(id);
+
+    setText(
+      "incident-details-heading",
+      `Инцидент #${id}`
+    );
+
+    if (!modal.open) {
+      modal.showModal();
+    }
+
+    loadDetails(selectedId);
+
+  }
+
+
+  function initialize() {
+
+    const modal =
+      getElement("incident-details-modal");
+
+    if (!modal) return;
+
+    if (modal.dataset.initialized === "true") {
+      return;
+    }
+
+    modal.dataset.initialized = "true";
+
+    document.addEventListener("click", event => {
+
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      const button = event.target.closest(
+        "button[data-details-incident-id]"
+      );
+
+      if (button) {
+
+        openDetails(
+          button.dataset.detailsIncidentId
+        );
+
+      }
+
+    });
+
+    getElement("incident-details-close")
+      .addEventListener("click", () => {
+        modal.close();
+      });
+
+    getElement("incident-details-refresh")
+      .addEventListener("click", () => {
+
+        if (selectedId) {
+          loadDetails(selectedId);
+        }
+
+      });
+
+    modal.addEventListener("close", () => {
+
+      requestId++;
+
+      if (controller) {
+
+        controller.abort();
+
+        controller = null;
+
+      }
+
+      selectedId = null;
+
+      showMessage("");
+
+      getElement(
+        "incident-details-content"
+      ).hidden = true;
+
+      getElement(
+        "incident-details-refresh"
+      ).disabled = false;
+
+    });
+
+    console.log(
+      "Incident details module initialized successfully"
+    );
+
+  }
+
+
+  if (document.readyState === "loading") {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      { once: true }
+    );
+
+  } else {
+
+    initialize();
 
   }
 
