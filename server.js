@@ -1467,6 +1467,181 @@ async function acknowledgeMonitoringIncident(id) {
 
 
 // ========================================
+// INCIDENT PERFORMANCE METRICS
+// ========================================
+
+async function getIncidentPerformanceMetrics(hours) {
+
+  const result = await pool.query(
+    `
+      WITH cohort AS (
+
+        SELECT *
+
+        FROM monitoring_incident_sla
+
+        WHERE opened_at >=
+          NOW() - make_interval(
+            hours => $1::integer
+          )
+
+          AND opened_at <= NOW()
+
+      ),
+
+      metrics AS (
+
+        SELECT
+
+          COUNT(*)::integer
+            AS total_incidents,
+
+          COUNT(*) FILTER (
+            WHERE acknowledged_at >= opened_at
+          )::integer
+            AS acknowledged_incidents,
+
+          COUNT(*) FILTER (
+            WHERE resolved_at >= opened_at
+          )::integer
+            AS resolved_incidents,
+
+          ROUND(
+            AVG(
+              EXTRACT(
+                EPOCH FROM (
+                  acknowledged_at - opened_at
+                )
+              ) / 60
+            ) FILTER (
+              WHERE acknowledged_at >= opened_at
+            ),
+            2
+          ) AS mtta_minutes,
+
+          ROUND(
+            AVG(
+              EXTRACT(
+                EPOCH FROM (
+                  resolved_at - opened_at
+                )
+              ) / 60
+            ) FILTER (
+              WHERE resolved_at >= opened_at
+            ),
+            2
+          ) AS mttr_minutes,
+
+          COUNT(*) FILTER (
+            WHERE response_sla_status = 'met'
+          )::integer
+            AS response_met,
+
+          COUNT(*) FILTER (
+            WHERE response_sla_status = 'breached'
+          )::integer
+            AS response_breached,
+
+          COUNT(*) FILTER (
+            WHERE resolution_sla_status = 'met'
+          )::integer
+            AS resolution_met,
+
+          COUNT(*) FILTER (
+            WHERE resolution_sla_status = 'breached'
+          )::integer
+            AS resolution_breached
+
+        FROM cohort
+
+      ),
+
+      notifications AS (
+
+        SELECT
+
+          COUNT(*) FILTER (
+            WHERE e.notification_status = 'sent'
+          )::integer
+            AS notifications_sent,
+
+          COUNT(*) FILTER (
+            WHERE e.notification_status IN (
+              'pending',
+              'processing',
+              'failed'
+            )
+          )::integer
+            AS notifications_pending,
+
+          COUNT(*) FILTER (
+            WHERE e.notification_status = 'dead'
+          )::integer
+            AS notifications_dead
+
+        FROM monitoring_incident_escalations e
+
+        INNER JOIN cohort c
+          ON c.id = e.incident_id
+
+      )
+
+      SELECT
+
+        metrics.*,
+
+        notifications.*,
+
+        ROUND(
+          100.0 * response_met
+          / NULLIF(
+              response_met + response_breached,
+              0
+            ),
+          2
+        ) AS response_sla_percent,
+
+        ROUND(
+          100.0 * resolution_met
+          / NULLIF(
+              resolution_met + resolution_breached,
+              0
+            ),
+          2
+        ) AS resolution_sla_percent
+
+      FROM metrics
+
+      CROSS JOIN notifications
+    `,
+    [hours]
+  );
+
+  const data = result.rows[0];
+
+  const numericFields = [
+    'mtta_minutes',
+    'mttr_minutes',
+    'response_sla_percent',
+    'resolution_sla_percent'
+  ];
+
+  for (const field of numericFields) {
+
+    if (data[field] !== null) {
+
+      data[field] = Number(data[field]);
+
+    }
+
+  }
+
+  return data;
+
+}
+
+
+// ========================================
 // INCIDENT SLA SERVICE
 // ========================================
 
@@ -2705,6 +2880,89 @@ app.get(
         ok: false,
 
         error: 'Incident summary unavailable'
+
+      });
+
+    }
+
+  }
+
+);
+
+
+// ========================================
+// INCIDENT PERFORMANCE METRICS API
+// ========================================
+
+app.get(
+  '/api/monitoring/incident-metrics',
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set(
+      'Cache-Control',
+      'no-store'
+    );
+
+    const period =
+      req.query.period ?? '30d';
+
+    const periods = {
+      '24h': 24,
+      '7d': 168,
+      '30d': 720
+    };
+
+    if (
+      typeof period !== 'string' ||
+      !Object.prototype.hasOwnProperty.call(
+        periods,
+        period
+      )
+    ) {
+
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid period'
+      });
+
+    }
+
+    try {
+
+      const metrics =
+        await getIncidentPerformanceMetrics(
+          periods[period]
+        );
+
+      return res.json({
+
+        ok: true,
+
+        period,
+
+        generated_at:
+          new Date().toISOString(),
+
+        metrics
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        'Incident performance metrics error:',
+        error.message
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error:
+          'Incident metrics unavailable'
 
       });
 
