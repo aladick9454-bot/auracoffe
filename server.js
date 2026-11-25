@@ -575,6 +575,143 @@ async function getMonitoringAnalytics(hours) {
   };
 }
 
+async function getMonitoringComparison(hours) {
+
+  const query = `
+    WITH periods AS (
+
+      SELECT
+        'current' AS period,
+        NOW() - ($1::integer * INTERVAL '1 hour') AS start_at,
+        NOW() AS end_at
+
+      UNION ALL
+
+      SELECT
+        'previous' AS period,
+        NOW() - ($1::integer * INTERVAL '2 hours') AS start_at,
+        NOW() - ($1::integer * INTERVAL '1 hour') AS end_at
+
+    )
+
+    SELECT
+      p.period,
+
+      COUNT(s.checked_at)::integer AS total_checks,
+
+      COUNT(s.checked_at) FILTER (
+        WHERE s.overall_status = 'healthy'
+      )::integer AS healthy_checks,
+
+      COUNT(s.checked_at) FILTER (
+        WHERE s.overall_status = 'warning'
+      )::integer AS warning_checks,
+
+      COUNT(s.checked_at) FILTER (
+        WHERE s.overall_status = 'critical'
+      )::integer AS critical_checks,
+
+      COUNT(s.checked_at) FILTER (
+        WHERE s.overall_status = 'unknown'
+      )::integer AS unknown_checks,
+
+      ROUND(
+        100.0 * COUNT(s.checked_at) FILTER (
+          WHERE s.overall_status = 'healthy'
+        ) / NULLIF(COUNT(s.checked_at), 0),
+        2
+      ) AS healthy_percent
+
+    FROM periods p
+
+    LEFT JOIN monitoring_snapshots s
+      ON s.checked_at >= p.start_at
+      AND s.checked_at < p.end_at
+
+    GROUP BY p.period
+  `;
+
+  const result = await pool.query(
+    query,
+    [hours]
+  );
+
+  function normalize(row) {
+
+    return {
+      ...row,
+
+      healthy_percent:
+        row.healthy_percent === null
+          ? null
+          : Number(row.healthy_percent)
+    };
+
+  }
+
+  const current = normalize(
+    result.rows.find(
+      row => row.period === 'current'
+    )
+  );
+
+  const previous = normalize(
+    result.rows.find(
+      row => row.period === 'previous'
+    )
+  );
+
+  const comparable =
+    current.total_checks > 0 &&
+    previous.total_checks > 0;
+
+  return {
+
+    period_hours: hours,
+
+    comparable,
+
+    current,
+
+    previous,
+
+    changes: {
+
+      healthy_percent:
+        comparable
+          ? Number(
+              (
+                current.healthy_percent -
+                previous.healthy_percent
+              ).toFixed(2)
+            )
+          : null,
+
+      critical_checks:
+        comparable
+          ? current.critical_checks -
+            previous.critical_checks
+          : null,
+
+      warning_checks:
+        comparable
+          ? current.warning_checks -
+            previous.warning_checks
+          : null,
+
+      total_checks:
+        comparable
+          ? current.total_checks -
+            previous.total_checks
+          : null
+
+    }
+
+  };
+
+}
+
+
 async function getMonitoringHistory(hours) {
   const query = `
     SELECT
@@ -1173,15 +1310,19 @@ app.get(
     const hours = periods[period];
 
     try {
-      const analytics =
-        await getMonitoringAnalytics(hours);
+      const [analytics, comparison] =
+  await Promise.all([
+    getMonitoringAnalytics(hours),
+    getMonitoringComparison(hours)
+  ]);
 
-      return res.json({
-        ok: true,
-        period,
-        generated_at: new Date().toISOString(),
-        analytics
-      });
+return res.json({
+  ok: true,
+  period,
+  generated_at: new Date().toISOString(),
+  analytics,
+  comparison
+});
 
     } catch (error) {
       console.error(

@@ -547,6 +547,194 @@ async function loadPeriodData(
 // 6. ANALYTICS CARDS
 // ========================================
 
+function renderTrend(
+  id,
+  value,
+  higherIsBetter,
+  suffix = ""
+) {
+
+  const element =
+    document.getElementById(id);
+
+  if (!element) return;
+
+  element.classList.remove(
+    "trend-positive",
+    "trend-negative",
+    "trend-neutral"
+  );
+
+  if (!Number.isFinite(value)) {
+
+    element.textContent = "—";
+
+    element.classList.add(
+      "trend-neutral"
+    );
+
+    return;
+
+  }
+
+  const sign = value > 0 ? "+" : "";
+
+  element.textContent =
+    sign + value + suffix;
+
+  if (value === 0) {
+
+    element.classList.add(
+      "trend-neutral"
+    );
+
+    return;
+
+  }
+
+  const improved =
+    higherIsBetter
+      ? value > 0
+      : value < 0;
+
+  element.classList.add(
+
+    improved
+      ? "trend-positive"
+      : "trend-negative"
+
+  );
+
+}
+
+function resetComparison() {
+
+  renderTrend(
+    "comparison-healthy",
+    null,
+    true
+  );
+
+  renderTrend(
+    "comparison-warning",
+    null,
+    false
+  );
+
+  renderTrend(
+    "comparison-critical",
+    null,
+    false
+  );
+
+  [
+    "comparison-healthy-previous",
+    "comparison-warning-previous",
+    "comparison-critical-previous"
+  ].forEach(id => {
+    setAnalyticsText(id, "");
+  });
+
+  setAnalyticsText(
+    "comparison-description",
+    "Недостаточно данных для сравнения."
+  );
+
+}
+
+function renderComparison(data) {
+
+  if (!data?.comparable) {
+
+    resetComparison();
+
+    return;
+
+  }
+
+  const periods = {
+
+    "24h": "24 часа",
+
+    "7d": "7 дней",
+
+    "30d": "30 дней"
+
+  };
+
+  setAnalyticsText(
+
+    "comparison-description",
+
+    `Последние ${periods[selectedAnalyticsPeriod]} относительно предыдущего аналогичного периода. Проверок: ${data.current.total_checks} против ${data.previous.total_checks}.`
+
+  );
+
+  renderTrend(
+
+    "comparison-healthy",
+
+    data.changes.healthy_percent,
+
+    true,
+
+    " п. п."
+
+  );
+
+  renderTrend(
+
+    "comparison-warning",
+
+    data.changes.warning_checks,
+
+    false
+
+  );
+
+  renderTrend(
+
+    "comparison-critical",
+
+    data.changes.critical_checks,
+
+    false
+
+  );
+
+  setAnalyticsText(
+
+    "comparison-healthy-previous",
+
+    "Ранее: " +
+
+      formatMetricsPercent(
+        data.previous.healthy_percent
+      )
+
+  );
+
+  setAnalyticsText(
+
+    "comparison-warning-previous",
+
+    "Ранее: " +
+      data.previous.warning_checks
+
+  );
+
+  setAnalyticsText(
+
+    "comparison-critical-previous",
+
+    "Ранее: " +
+      data.previous.critical_checks
+
+  );
+
+}
+
+
 function renderAnalytics(data) {
 
   setAnalyticsText(
@@ -669,7 +857,7 @@ function resetAnalytics() {
   });
 
   clearStatusChart();
-
+  resetComparison();
 }
 
 function loadAnalytics() {
@@ -688,6 +876,9 @@ function loadAnalytics() {
 
       renderAnalytics(
         result.analytics
+      );
+      renderComparison(
+      result.comparison
       );
 
       setAnalyticsText(
@@ -1355,6 +1546,218 @@ function showMetricsMessage(
 
 }
 
+
+function resetMonitoringInsights() {
+
+  setAnalyticsText(
+
+    "monitoring-insights",
+
+    "Ожидание актуальных аналитических данных..."
+
+  );
+
+}
+
+function renderMonitoringInsights(data) {
+
+  const container =
+    document.getElementById(
+      "monitoring-insights"
+    );
+
+  if (!container) return;
+
+  container.replaceChildren();
+
+  function addInsight(message, type) {
+
+    const element =
+      document.createElement("div");
+
+    element.className =
+      `insight-item insight-${type}`;
+
+    element.textContent = message;
+
+    container.append(element);
+
+  }
+
+  if (!data.total_checks) {
+
+    addInsight(
+
+      "За выбранный период нет проверок. Аналитические выводы пока недоступны.",
+
+      "neutral"
+
+    );
+
+    return;
+
+  }
+
+  // 1. Доступность сайта и API
+
+  const availability =
+    data.availability_percent;
+
+  if (!Number.isFinite(availability)) {
+
+    addInsight(
+
+      "Недостаточно известных проверок доступности сайта и API.",
+
+      "neutral"
+
+    );
+
+  } else if (availability >= 99) {
+
+    addInsight(
+
+      `Высокая доля успешных проверок доступности сайта и API: ${availability.toFixed(2)}%.`,
+
+      "success"
+
+    );
+
+  } else if (availability >= 95) {
+
+    addInsight(
+
+      `Доля успешных проверок доступности снижена до ${availability.toFixed(2)}%. Рекомендуется изучить историю предупреждений.`,
+
+      "warning"
+
+    );
+
+  } else {
+
+    addInsight(
+
+      `Низкая доля успешных проверок доступности: ${availability.toFixed(2)}%. Необходимо проверить сайт и API.`,
+
+      "critical"
+
+    );
+
+  }
+
+  // 2. Полнота мониторинга
+
+  if (
+    Number.isFinite(data.missed_checks) &&
+    data.missed_checks > 0
+  ) {
+
+    addInsight(
+
+      `Незаполненных интервалов мониторинга: ${data.missed_checks}. Возможные причины: мониторинг ещё не был запущен, остановка workflow или ошибка передачи данных.`,
+
+      "warning"
+
+    );
+
+  } else if (data.missed_checks === 0) {
+
+    addInsight(
+
+      "Все ожидаемые интервалы мониторинга заполнены.",
+
+      "success"
+
+    );
+
+  }
+
+  // 3. Наименее стабильный компонент
+
+  const components =
+    Array.isArray(data.components)
+      ? data.components
+      : [];
+
+  const measuredComponents = components
+
+    .filter(component =>
+
+      component.total > 0 &&
+
+      Number.isFinite(
+        component.healthy_percent
+      )
+
+    )
+
+    .sort((a, b) =>
+
+      a.healthy_percent -
+      b.healthy_percent
+
+    );
+
+  const weakest =
+    measuredComponents[0];
+
+  if (weakest) {
+
+    const name =
+      metricsComponentNames[weakest.name]
+      || weakest.name;
+
+    if (weakest.healthy_percent < 90) {
+
+      addInsight(
+
+        `Наименее стабильный компонент: ${name}. Успешность ${weakest.healthy_percent.toFixed(2)}%. Рекомендуется проверить связанные сервисы и workflow в n8n.`,
+
+        "critical"
+
+      );
+
+    } else if (weakest.healthy_percent < 99) {
+
+      addInsight(
+
+        `Компонент, требующий внимания: ${name}. Успешность ${weakest.healthy_percent.toFixed(2)}%.`,
+
+        "warning"
+
+      );
+
+    } else {
+
+      addInsight(
+
+        "Все компоненты с имеющимися данными показывают высокую успешность проверок.",
+
+        "success"
+
+      );
+
+    }
+
+  }
+
+  // 4. Размер выборки
+
+  if (data.total_checks < 10) {
+
+    addInsight(
+
+      `Выводы основаны только на ${data.total_checks} проверках. Для надёжной оценки необходимо накопить больше данных.`,
+
+      "neutral"
+
+    );
+
+  }
+
+}
+
+
 function renderMetrics(data) {
 
   setAnalyticsText(
@@ -1410,6 +1813,7 @@ function renderMetrics(data) {
   renderComponentMetrics(
     data.components
   );
+  renderMonitoringInsights(data);
 
 }
 
@@ -1555,6 +1959,7 @@ function resetMetrics() {
   );
 
   renderComponentMetrics([]);
+  resetMonitoringInsights();
 
 }
 
@@ -2245,6 +2650,110 @@ function initializeAnalyticsPeriods() {
 // 16. OPTIMIZED AUTO REFRESH
 // ========================================
 
+
+let manualRefreshInProgress = false;
+
+async function manualRefreshDashboard() {
+
+  const analyticsBusy =
+    Object.values(requests).some(
+      state => state.controller !== null
+    );
+
+  if (
+    manualRefreshInProgress ||
+    monitoringLoading ||
+    analyticsBusy
+  ) {
+
+    setAnalyticsText(
+
+      "dashboard-refresh-status",
+
+      "Обновление уже выполняется. Подождите."
+
+    );
+
+    return;
+
+  }
+
+  manualRefreshInProgress = true;
+
+  const button =
+    document.getElementById(
+      "dashboard-refresh-button"
+    );
+
+  if (button) {
+
+    button.disabled = true;
+
+    button.textContent =
+      "Обновление...";
+
+  }
+
+  setAnalyticsText(
+
+    "dashboard-refresh-status",
+
+    "Запрашиваем актуальные данные..."
+
+  );
+
+  try {
+
+    lastAnalyticsRefreshAt =
+      Date.now();
+
+    await Promise.allSettled([
+
+      loadMonitoring(),
+
+      loadAnalytics(),
+
+      loadMonitoringHistory(),
+
+      loadMonitoringMetrics()
+
+    ]);
+
+    setAnalyticsText(
+
+      "dashboard-refresh-status",
+
+      "Запросы завершены: " +
+
+        new Date().toLocaleTimeString(
+          "ru-RU"
+        ) +
+
+        ". Состояние данных указано в разделах."
+
+    );
+
+  } finally {
+
+    manualRefreshInProgress = false;
+
+    if (button) {
+
+      button.disabled = false;
+
+      button.textContent =
+        "↻ Обновить данные";
+
+    }
+
+  }
+
+}
+
+if (manualRefreshInProgress) {
+  return;
+}
+
 function refreshMonitoringDashboard(
   force = false
 ) {
@@ -2352,6 +2861,13 @@ function initializeMonitoringDashboard() {
   initializeAnalyticsPeriods();
 
   initializeHistoryPagination();
+
+  document.getElementById(
+  "dashboard-refresh-button"
+)?.addEventListener(
+  "click",
+  manualRefreshDashboard
+);
 
   document.getElementById(
 

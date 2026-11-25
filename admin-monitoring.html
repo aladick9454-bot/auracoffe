@@ -31,6 +31,24 @@
 
     </header>
 
+    <div class="dashboard-toolbar">
+
+  <p
+    id="dashboard-refresh-status"
+    role="status"
+  >
+    Ожидание обновления...
+  </p>
+
+  <button
+    id="dashboard-refresh-button"
+    class="dashboard-refresh-button"
+    type="button"
+  >
+    ↻ Обновить данные
+  </button>
+
+</div>
 
     <!-- FRESHNESS WARNING -->
 
@@ -250,6 +268,70 @@
       </div>
 
 
+<!-- PERIOD COMPARISON -->
+
+<section class="comparison-section">
+
+  <h3>Сравнение с предыдущим периодом</h3>
+
+  <p
+    id="comparison-description"
+    class="history-description"
+  >
+    Загрузка сравнения...
+  </p>
+
+  <div class="analytics-grid">
+
+    <article class="analytics-card">
+
+      <span>Динамика успешности</span>
+
+      <strong id="comparison-healthy">
+        —
+      </strong>
+
+      <p
+        id="comparison-healthy-previous"
+        class="comparison-previous"
+      ></p>
+
+    </article>
+
+    <article class="analytics-card">
+
+      <span>Динамика предупреждений</span>
+
+      <strong id="comparison-warning">
+        —
+      </strong>
+
+      <p
+        id="comparison-warning-previous"
+        class="comparison-previous"
+      ></p>
+
+    </article>
+
+    <article class="analytics-card">
+
+      <span>Динамика критических проверок</span>
+
+      <strong id="comparison-critical">
+        —
+      </strong>
+
+      <p
+        id="comparison-critical-previous"
+        class="comparison-previous"
+      ></p>
+
+    </article>
+
+  </div>
+
+</section>
+
       <!-- ADVANCED METRICS -->
 
       <section class="metrics-section">
@@ -352,6 +434,20 @@
 
       </section>
 
+<!-- AUTOMATIC INSIGHTS -->
+
+<section class="insights-section">
+
+  <h3>Аналитические выводы</h3>
+
+  <div
+    id="monitoring-insights"
+    aria-live="polite"
+  >
+    Ожидание данных мониторинга...
+  </div>
+
+</section>
 
       <!-- HISTORY CHART -->
 
