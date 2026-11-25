@@ -2750,14 +2750,14 @@ async function manualRefreshDashboard() {
 
 }
 
-if (manualRefreshInProgress) {
-  return;
-}
 
 function refreshMonitoringDashboard(
   force = false
 ) {
 
+  if (manualRefreshInProgress) {
+  return;
+  }
   if (
     document.hidden &&
     !force
