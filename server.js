@@ -1458,6 +1458,96 @@ async function acknowledgeMonitoringIncident(id) {
 
 
 // ========================================
+// INCIDENT DETAILS
+// ========================================
+
+async function getMonitoringIncidentDetails(id) {
+
+  const result = await pool.query(
+
+    `
+      SELECT
+        i.*,
+
+        ROUND(
+          EXTRACT(
+            EPOCH FROM (
+              COALESCE(i.resolved_at, NOW())
+              - i.opened_at
+            )
+          ) / 60,
+          2
+        ) AS duration_minutes,
+
+        (
+          SELECT COUNT(*)::integer
+          FROM monitoring_incident_events
+          WHERE incident_id = i.id
+        ) AS events_total,
+
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              to_jsonb(e)
+              ORDER BY e.created_at DESC, e.id DESC
+            )
+            FROM (
+              SELECT
+                id,
+                event_type,
+                actor,
+                message,
+                metadata,
+                created_at
+              FROM monitoring_incident_events
+              WHERE incident_id = i.id
+              ORDER BY created_at DESC, id DESC
+              LIMIT 100
+            ) e
+          ),
+          '[]'::jsonb
+        ) AS events
+
+      FROM monitoring_incidents i
+
+      WHERE i.id = $1::bigint
+    `,
+
+    [id]
+
+  );
+
+  if (!result.rows.length) {
+    return null;
+  }
+
+  const {
+    events,
+    events_total,
+    ...incident
+  } = result.rows[0];
+
+  return {
+
+    incident: {
+      ...incident,
+
+      duration_minutes:
+        incident.duration_minutes === null
+          ? null
+          : Number(incident.duration_minutes)
+    },
+
+    events,
+
+    events_total
+
+  };
+
+}
+
+
+// ========================================
 // COUNT MONITORING INCIDENTS
 // ========================================
 
@@ -2483,6 +2573,77 @@ app.get(
 
         error: 'Incident summary unavailable'
 
+      });
+
+    }
+
+  }
+
+);
+
+
+// ========================================
+// INCIDENT DETAILS API
+// ========================================
+
+app.get(
+
+  '/api/monitoring/incidents/:id',
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set('Cache-Control', 'no-store');
+
+    const id = req.params.id;
+
+    if (
+      !/^[1-9]\d{0,18}$/.test(id) ||
+      BigInt(id) > 9223372036854775807n
+    ) {
+
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid incident ID'
+      });
+
+    }
+
+    try {
+
+      const details =
+        await getMonitoringIncidentDetails(id);
+
+      if (!details) {
+
+        return res.status(404).json({
+          ok: false,
+          error: 'Incident not found'
+        });
+
+      }
+
+      return res.json({
+
+        ok: true,
+
+        generated_at: new Date().toISOString(),
+
+        ...details
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        'Incident details API error:',
+        error.message
+      );
+
+      return res.status(503).json({
+        ok: false,
+        error: 'Incident service unavailable'
       });
 
     }
