@@ -691,7 +691,7 @@ const validTimestamp =
   }
 
   try {
-    await saveMonitoringSnapshot(snapshot);
+    await saveMonitoringSnapshot(data);
 
     return res.json({
       ok: true
