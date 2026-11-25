@@ -1467,6 +1467,130 @@ async function acknowledgeMonitoringIncident(id) {
 
 
 // ========================================
+// INCIDENT SLA SERVICE
+// ========================================
+
+async function getMonitoringSla() {
+
+  const result = await pool.query(
+
+    `
+      WITH active AS (
+
+        SELECT *
+        FROM monitoring_incident_sla
+        WHERE status IN (
+          'open',
+          'acknowledged'
+        )
+
+      ),
+
+      classified AS (
+
+        SELECT
+
+          active.*,
+
+          CASE
+
+            WHEN response_sla_status = 'breached'
+              OR resolution_sla_status = 'breached'
+            THEN 'breached'
+
+            WHEN response_sla_status = 'unknown'
+              OR resolution_sla_status = 'unknown'
+            THEN 'unknown'
+
+            WHEN response_sla_status = 'at_risk'
+              OR resolution_sla_status = 'at_risk'
+            THEN 'at_risk'
+
+            ELSE 'on_track'
+
+          END AS sla_status
+
+        FROM active
+
+      )
+
+      SELECT
+
+        jsonb_build_object(
+
+          'active_incidents',
+          COUNT(*),
+
+          'on_track',
+          COUNT(*) FILTER (
+            WHERE sla_status = 'on_track'
+          ),
+
+          'at_risk',
+          COUNT(*) FILTER (
+            WHERE sla_status = 'at_risk'
+          ),
+
+          'breached',
+          COUNT(*) FILTER (
+            WHERE sla_status = 'breached'
+          ),
+
+          'unknown',
+          COUNT(*) FILTER (
+            WHERE sla_status = 'unknown'
+          )
+
+        ) AS summary,
+
+
+        COALESCE(
+
+          (
+            SELECT jsonb_agg(
+              to_jsonb(limited)
+            )
+
+            FROM (
+
+              SELECT *
+
+              FROM classified
+
+              ORDER BY
+
+                CASE sla_status
+                  WHEN 'breached' THEN 1
+                  WHEN 'at_risk' THEN 2
+                  WHEN 'unknown' THEN 3
+                  ELSE 4
+                END,
+
+                resolution_due_at ASC NULLS LAST,
+
+                id ASC
+
+              LIMIT 100
+
+            ) AS limited
+
+          ),
+
+          '[]'::jsonb
+
+        ) AS incidents
+
+      FROM classified
+    `
+
+  );
+
+  return result.rows[0];
+
+}
+
+
+// ========================================
 // INCIDENT DETAILS
 // ========================================
 
@@ -2581,6 +2705,64 @@ app.get(
         ok: false,
 
         error: 'Incident summary unavailable'
+
+      });
+
+    }
+
+  }
+
+);
+
+
+// ========================================
+// INCIDENT SLA API
+// ========================================
+
+app.get(
+
+  '/api/monitoring/sla',
+
+  requireAdmin,
+
+  async (req, res) => {
+
+    res.set(
+      'Cache-Control',
+      'no-store'
+    );
+
+    try {
+
+      const data =
+        await getMonitoringSla();
+
+      return res.json({
+
+        ok: true,
+
+        generated_at:
+          new Date().toISOString(),
+
+        summary: data.summary,
+
+        incidents: data.incidents
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        'Monitoring SLA API error:',
+        error.message
+      );
+
+      return res.status(503).json({
+
+        ok: false,
+
+        error:
+          'Monitoring SLA service unavailable'
 
       });
 
