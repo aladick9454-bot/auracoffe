@@ -821,6 +821,124 @@
     Ожидание загрузки...
   </p>
 
+<!-- ========================================
+     INCIDENT SLA DASHBOARD
+========================================= -->
+
+<section
+  id="sla-dashboard"
+  class="sla-dashboard"
+>
+
+  <div class="sla-header">
+
+    <div>
+
+      <h2>Контроль SLA</h2>
+
+      <p>
+        Контроль сроков реакции и устранения
+        инцидентов
+      </p>
+
+    </div>
+
+    <button
+      type="button"
+      id="sla-refresh"
+      class="sla-refresh-button"
+    >
+      ↻ Обновить
+    </button>
+
+  </div>
+
+
+  <p
+    id="sla-message"
+    class="sla-message"
+    role="status"
+    hidden
+  ></p>
+
+
+  <div class="sla-summary-grid">
+
+    <div class="sla-card">
+
+      <span>Активные инциденты</span>
+
+      <strong id="sla-active">—</strong>
+
+    </div>
+
+
+    <div class="sla-card">
+
+      <span>В пределах SLA</span>
+
+      <strong
+        id="sla-on-track"
+        class="sla-green"
+      >—</strong>
+
+    </div>
+
+
+    <div class="sla-card">
+
+      <span>Приближается срок</span>
+
+      <strong
+        id="sla-at-risk"
+        class="sla-yellow"
+      >—</strong>
+
+    </div>
+
+
+    <div class="sla-card">
+
+      <span>Нарушения SLA</span>
+
+      <strong
+        id="sla-breached"
+        class="sla-red"
+      >—</strong>
+
+    </div>
+
+
+    <div class="sla-card">
+
+      <span>Нет нормативов</span>
+
+      <strong id="sla-unknown">—</strong>
+
+    </div>
+
+  </div>
+
+
+  <h3>Контроль активных инцидентов</h3>
+
+
+  <div id="sla-incidents-list">
+
+    <p>Загрузка данных...</p>
+
+  </div>
+
+
+  <p
+    id="sla-updated"
+    class="sla-updated"
+  >
+    Ожидание обновления...
+  </p>
+
+</section>
+
 </section>
 
 

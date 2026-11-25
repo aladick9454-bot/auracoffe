@@ -4565,3 +4565,879 @@ if (
   }
 
 })();
+
+
+// ========================================
+// INCIDENT SLA DASHBOARD MODULE
+// ========================================
+
+;(() => {
+
+  "use strict";
+
+
+  const API_URL =
+    "/api/monitoring/sla";
+
+  const REFRESH_INTERVAL = 60000;
+
+  const REQUEST_TIMEOUT = 15000;
+
+
+  let controller = null;
+
+  let requestId = 0;
+
+
+  const componentNames = {
+
+    system_health: "CRM",
+
+    availability: "Сайт и API",
+
+    performance_frontend: "Frontend",
+
+    performance_backend: "Backend",
+
+    daily_reports: "Ежедневные отчёты"
+
+  };
+
+
+  const severityNames = {
+
+    warning: "Предупреждение",
+
+    critical: "Критический"
+
+  };
+
+
+  const slaNames = {
+
+    on_track: "В пределах SLA",
+
+    at_risk: "Приближается срок",
+
+    breached: "Нарушение SLA",
+
+    met: "Выполнено вовремя",
+
+    unknown: "Нет данных"
+
+  };
+
+
+  const slaColors = {
+
+    on_track: "sla-green",
+
+    at_risk: "sla-yellow",
+
+    breached: "sla-red",
+
+    met: "sla-green",
+
+    unknown: "sla-gray"
+
+  };
+
+
+  // ======================================
+  // DOM HELPERS
+  // ======================================
+
+  function getElement(id) {
+
+    return document.getElementById(id);
+
+  }
+
+
+  function setText(id, value) {
+
+    const element = getElement(id);
+
+    if (element) {
+
+      element.textContent =
+        value ?? "—";
+
+    }
+
+  }
+
+
+  function showMessage(
+    message = "",
+    isError = false
+  ) {
+
+    const element =
+      getElement("sla-message");
+
+    if (!element) return;
+
+    element.textContent = message;
+
+    element.hidden = !message;
+
+    element.classList.toggle(
+      "is-error",
+      isError
+    );
+
+  }
+
+
+  function normalizeStatus(status) {
+
+    return Object.hasOwn(
+      slaNames,
+      status
+    )
+
+      ? status
+
+      : "unknown";
+
+  }
+
+
+  function parseNumber(value) {
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+
+      return null;
+
+    }
+
+    const number = Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : null;
+
+  }
+
+
+  // ======================================
+  // FORMAT TIME
+  // ======================================
+
+  function formatMinutes(value) {
+
+    const number = parseNumber(value);
+
+    if (number === null) {
+
+      return "—";
+
+    }
+
+    const total =
+      Math.floor(Math.abs(number));
+
+    const days =
+      Math.floor(total / 1440);
+
+    const hours =
+      Math.floor((total % 1440) / 60);
+
+    const minutes = total % 60;
+
+
+    if (days > 0) {
+
+      return `${days} д. ${hours} ч. ${minutes} мин.`;
+
+    }
+
+    if (hours > 0) {
+
+      return `${hours} ч. ${minutes} мин.`;
+
+    }
+
+    if (total === 0) {
+
+      return "менее минуты";
+
+    }
+
+    return `${minutes} мин.`;
+
+  }
+
+
+  function formatSlaTime(
+    remaining,
+    status
+  ) {
+
+    const minutes =
+      parseNumber(remaining);
+
+    if (
+      minutes === null ||
+      status === "unknown"
+    ) {
+
+      return "Нет данных";
+
+    }
+
+    if (status === "met") {
+
+      return "Выполнено вовремя";
+
+    }
+
+    if (status === "breached") {
+
+      return `Просрочено на ${
+        formatMinutes(minutes)
+      }`;
+
+    }
+
+    return `Осталось ${
+      formatMinutes(minutes)
+    }`;
+
+  }
+
+
+  // ======================================
+  // CREATE SLA TIMER
+  // ======================================
+
+  function createTimer(
+    label,
+    remaining,
+    limit,
+    rawStatus
+  ) {
+
+    const status =
+      normalizeStatus(rawStatus);
+
+    const remainingNumber =
+      parseNumber(remaining);
+
+    const limitNumber =
+      parseNumber(limit);
+
+
+    const wrapper =
+      document.createElement("div");
+
+    wrapper.className = "sla-timer";
+
+
+    const header =
+      document.createElement("div");
+
+    header.className =
+      "sla-timer-header";
+
+
+    const title =
+      document.createElement("span");
+
+    title.textContent = label;
+
+
+    const time =
+      document.createElement("strong");
+
+    time.className =
+      slaColors[status];
+
+    time.textContent =
+      formatSlaTime(
+        remainingNumber,
+        status
+      );
+
+
+    header.append(title, time);
+
+
+    const progress =
+      document.createElement("div");
+
+    progress.className =
+      "sla-progress";
+
+
+    const fill =
+      document.createElement("div");
+
+    fill.className =
+      `sla-progress-fill ${status}`;
+
+
+    let percent = 0;
+
+
+    if (
+      remainingNumber !== null &&
+      limitNumber !== null &&
+      limitNumber > 0
+    ) {
+
+      percent = Math.min(
+
+        100,
+
+        Math.max(
+
+          0,
+
+          (
+            (limitNumber - remainingNumber)
+            / limitNumber
+          ) * 100
+
+        )
+
+      );
+
+    }
+
+
+    fill.style.width =
+      `${percent}%`;
+
+
+    progress.appendChild(fill);
+
+    wrapper.append(header, progress);
+
+
+    return wrapper;
+
+  }
+
+
+  // ======================================
+  // RENDER INCIDENT
+  // ======================================
+
+  function createIncidentCard(incident) {
+
+    const status =
+      normalizeStatus(
+        incident.sla_status
+      );
+
+
+    const card =
+      document.createElement("article");
+
+    card.className = "sla-incident";
+
+
+    const header =
+      document.createElement("div");
+
+    header.className =
+      "sla-incident-header";
+
+
+    const title =
+      document.createElement("h4");
+
+    const component =
+      componentNames[incident.component]
+      || incident.component;
+
+
+    title.textContent =
+      `#${incident.id} — ${component}`;
+
+
+    const state =
+      document.createElement("strong");
+
+    state.className =
+      slaColors[status];
+
+    state.textContent =
+      slaNames[status];
+
+
+    header.append(title, state);
+
+
+    const severity =
+      document.createElement("p");
+
+    severity.className = "sla-gray";
+
+    severity.textContent =
+      severityNames[incident.severity]
+      || incident.severity;
+
+
+    const responseTimer =
+      createTimer(
+
+        "Время реакции",
+
+        incident.response_remaining_minutes,
+
+        incident.sla_response_minutes,
+
+        incident.response_sla_status
+
+      );
+
+
+    const resolutionTimer =
+      createTimer(
+
+        "Время устранения",
+
+        incident.resolution_remaining_minutes,
+
+        incident.sla_resolution_minutes,
+
+        incident.resolution_sla_status
+
+      );
+
+
+    card.append(
+
+      header,
+
+      severity,
+
+      responseTimer,
+
+      resolutionTimer
+
+    );
+
+
+    return card;
+
+  }
+
+
+  // ======================================
+  // RENDER DASHBOARD
+  // ======================================
+
+  function renderDashboard(data) {
+
+    const summary = data.summary;
+
+
+    setText(
+      "sla-active",
+      summary.active_incidents
+    );
+
+    setText(
+      "sla-on-track",
+      summary.on_track
+    );
+
+    setText(
+      "sla-at-risk",
+      summary.at_risk
+    );
+
+    setText(
+      "sla-breached",
+      summary.breached
+    );
+
+    setText(
+      "sla-unknown",
+      summary.unknown
+    );
+
+
+    const container =
+      getElement("sla-incidents-list");
+
+    container.replaceChildren();
+
+
+    if (!data.incidents.length) {
+
+      const empty =
+        document.createElement("p");
+
+      empty.className = "sla-green";
+
+      empty.textContent =
+        "Активных инцидентов нет.";
+
+      container.appendChild(empty);
+
+    } else {
+
+      const fragment =
+        document.createDocumentFragment();
+
+
+      for (const incident of data.incidents) {
+
+        fragment.appendChild(
+
+          createIncidentCard(incident)
+
+        );
+
+      }
+
+
+      container.appendChild(fragment);
+
+    }
+
+
+    const updatedAt =
+      new Date(data.generated_at);
+
+
+    const formattedDate =
+      Number.isNaN(updatedAt.getTime())
+
+        ? "—"
+
+        : updatedAt.toLocaleString("ru-RU");
+
+
+    setText(
+
+      "sla-updated",
+
+      `Обновлено: ${formattedDate}. ` +
+      `Показано ${data.incidents.length} ` +
+      `из ${summary.active_incidents}.`
+
+    );
+
+  }
+
+
+  function resetDashboard() {
+
+    const ids = [
+
+      "sla-active",
+
+      "sla-on-track",
+
+      "sla-at-risk",
+
+      "sla-breached",
+
+      "sla-unknown"
+
+    ];
+
+
+    for (const id of ids) {
+
+      setText(id, "—");
+
+    }
+
+
+    setText(
+      "sla-incidents-list",
+      "Данные недоступны"
+    );
+
+    setText(
+      "sla-updated",
+      "Не удалось обновить данные"
+    );
+
+  }
+
+
+  // ======================================
+  // LOAD SLA DATA
+  // ======================================
+
+  async function loadSla() {
+
+    const currentRequest =
+      ++requestId;
+
+
+    if (controller) {
+
+      controller.abort();
+
+    }
+
+
+    const localController =
+      new AbortController();
+
+    controller = localController;
+
+
+    const refreshButton =
+      getElement("sla-refresh");
+
+    refreshButton.disabled = true;
+
+
+    const timeout = setTimeout(
+
+      () => localController.abort(),
+
+      REQUEST_TIMEOUT
+
+    );
+
+
+    try {
+
+      const response = await fetch(
+
+        API_URL,
+
+        {
+
+          credentials: "same-origin",
+
+          cache: "no-store",
+
+          signal: localController.signal
+
+        }
+
+      );
+
+
+      if (currentRequest !== requestId) {
+
+        return;
+
+      }
+
+
+      if (response.status === 401) {
+
+        window.location.href =
+          "/admin/login";
+
+        return;
+
+      }
+
+
+      if (!response.ok) {
+
+        throw new Error(
+
+          `Ошибка сервера: HTTP ${response.status}`
+
+        );
+
+      }
+
+
+      const data =
+        await response.json();
+
+
+      if (currentRequest !== requestId) {
+
+        return;
+
+      }
+
+
+      if (
+
+        data.ok !== true ||
+
+        !data.summary ||
+
+        !Array.isArray(data.incidents)
+
+      ) {
+
+        throw new Error(
+          "Некорректный ответ SLA API"
+        );
+
+      }
+
+
+      renderDashboard(data);
+
+      showMessage("");
+
+
+      console.log(
+
+        "SLA dashboard loaded:",
+
+        data.summary
+
+      );
+
+
+    } catch (error) {
+
+      if (currentRequest !== requestId) {
+
+        return;
+
+      }
+
+
+      resetDashboard();
+
+
+      showMessage(
+
+        error.name === "AbortError"
+
+          ? "Превышено время ожидания SLA API"
+
+          : "Не удалось загрузить данные SLA",
+
+        true
+
+      );
+
+
+      console.error(
+
+        "SLA dashboard error:",
+
+        error
+
+      );
+
+
+    } finally {
+
+      clearTimeout(timeout);
+
+
+      if (currentRequest === requestId) {
+
+        controller = null;
+
+        refreshButton.disabled = false;
+
+      }
+
+    }
+
+  }
+
+
+  // ======================================
+  // INITIALIZATION
+  // ======================================
+
+  function initialize() {
+
+    const dashboard =
+      getElement("sla-dashboard");
+
+
+    if (!dashboard) {
+
+      return;
+
+    }
+
+
+    if (
+      dashboard.dataset.initialized
+      === "true"
+    ) {
+
+      return;
+
+    }
+
+
+    dashboard.dataset.initialized =
+      "true";
+
+
+    getElement("sla-refresh")
+      .addEventListener(
+        "click",
+        loadSla
+      );
+
+
+    showMessage(
+      "Загрузка данных SLA..."
+    );
+
+
+    loadSla();
+
+
+    setInterval(
+
+      () => {
+
+        if (!controller) {
+
+          loadSla();
+
+        }
+
+      },
+
+      REFRESH_INTERVAL
+
+    );
+
+
+    console.log(
+
+      "SLA dashboard initialized successfully"
+
+    );
+
+  }
+
+
+  if (
+    document.readyState === "loading"
+  ) {
+
+    document.addEventListener(
+
+      "DOMContentLoaded",
+
+      initialize,
+
+      { once: true }
+
+    );
+
+  } else {
+
+    initialize();
+
+  }
+
+
+})();
