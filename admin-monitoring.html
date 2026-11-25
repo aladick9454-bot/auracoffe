@@ -3,18 +3,23 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0">
 
   <title>AURA COFFEE — Monitoring</title>
 
-  <link rel="stylesheet" href="/frontend/monitoring.css">
+  <link rel="stylesheet" href="/admin/monitoring.css">
 </head>
+
 <body>
 
   <main class="dashboard">
 
+    <!-- HEADER -->
+
     <header class="dashboard-header">
+
       <div>
         <h1>AURA COFFEE</h1>
         <p>Центр мониторинга бизнеса</p>
@@ -23,14 +28,21 @@
       <span id="overall-status" class="status">
         Загрузка...
       </span>
+
     </header>
 
 
-<div id="freshness-warning" class="freshness-warning" hidden>
-  Данные мониторинга устарели.
-  Текущее состояние системы неизвестно.
-</div>
+    <!-- FRESHNESS WARNING -->
 
+    <div
+      id="freshness-warning"
+      class="freshness-warning"
+      role="status"
+      hidden
+    ></div>
+
+
+    <!-- MAIN MONITORING -->
 
     <section class="dashboard-grid">
 
@@ -72,307 +84,464 @@
       </p>
     </footer>
 
-<section class="analytics-section">
 
-  <div class="analytics-header">
-    <div>
-      <h2>Аналитика мониторинга</h2>
-      <p>История состояния системы</p>
-    </div>
+    <!-- MONITORING ANALYTICS -->
 
-    <div class="analytics-periods">
+    <section class="analytics-section">
 
-      <button
-        type="button"
-        class="period-btn active"
-        data-period="24h"
-        aria-pressed="true">
-        24 часа
-      </button>
+      <div class="analytics-header">
 
-      <button
-        type="button"
-        class="period-btn"
-        data-period="7d"
-        aria-pressed="false">
-        7 дней
-      </button>
+        <div>
+          <h2>Аналитика мониторинга</h2>
+          <p>
+            История и статистика работы системы
+          </p>
+        </div>
 
-      <button
-        type="button"
-        class="period-btn"
-        data-period="30d"
-        aria-pressed="false">
-        30 дней
-      </button>
+        <div class="analytics-periods">
 
-    </div>
-  </div>
+          <button
+            class="period-btn active"
+            data-period="24h"
+            type="button"
+            aria-pressed="true"
+          >
+            24 часа
+          </button>
 
-  <div
-    id="analytics-error"
-    class="analytics-error"
-    role="status"
-    hidden>
-    Не удалось загрузить аналитику.
-  </div>
+          <button
+            class="period-btn"
+            data-period="7d"
+            type="button"
+            aria-pressed="false"
+          >
+            7 дней
+          </button>
 
-  <div class="analytics-grid">
+          <button
+            class="period-btn"
+            data-period="30d"
+            type="button"
+            aria-pressed="false"
+          >
+            30 дней
+          </button>
 
-    <article class="analytics-card">
-      <span>Всего проверок</span>
-      <strong id="analytics-total">—</strong>
-    </article>
+        </div>
 
-    <article class="analytics-card">
-      <span>Успешные проверки</span>
-      <strong
-        id="analytics-healthy"
-        class="analytics-green">—</strong>
-    </article>
-
-    <article class="analytics-card">
-      <span>Предупреждения</span>
-      <strong
-        id="analytics-warning"
-        class="analytics-yellow">—</strong>
-    </article>
-
-    <article class="analytics-card">
-      <span>Критические ошибки</span>
-      <strong
-        id="analytics-critical"
-        class="analytics-red">—</strong>
-    </article>
-
-    <article class="analytics-card">
-      <span>Неизвестное состояние</span>
-      <strong
-        id="analytics-unknown"
-        class="analytics-gray">—</strong>
-    </article>
-
-    <article class="analytics-card">
-      <span>Доля успешных проверок</span>
-      <strong id="analytics-percent">—</strong>
-    </article>
-
-  </div>
-
-  <div class="analytics-distribution">
-
-    <h3>Распределение результатов</h3>
-
-    <div class="analytics-bar">
-
-      <div
-        id="bar-healthy"
-        class="bar-healthy">
       </div>
 
-      <div
-        id="bar-warning"
-        class="bar-warning">
-      </div>
 
       <div
-        id="bar-critical"
-        class="bar-critical">
+        id="analytics-error"
+        class="analytics-error"
+        role="alert"
+        hidden
+      ></div>
+
+
+      <!-- ANALYTICS CARDS -->
+
+      <div class="analytics-grid">
+
+        <article class="analytics-card">
+          <span>Всего проверок</span>
+          <strong id="analytics-total">—</strong>
+        </article>
+
+        <article class="analytics-card">
+          <span>Успешные проверки</span>
+
+          <strong
+            id="analytics-healthy"
+            class="analytics-green"
+          >—</strong>
+        </article>
+
+        <article class="analytics-card">
+          <span>Предупреждения</span>
+
+          <strong
+            id="analytics-warning"
+            class="analytics-yellow"
+          >—</strong>
+        </article>
+
+        <article class="analytics-card">
+          <span>Критические ошибки</span>
+
+          <strong
+            id="analytics-critical"
+            class="analytics-red"
+          >—</strong>
+        </article>
+
+        <article class="analytics-card">
+          <span>Неизвестные состояния</span>
+
+          <strong
+            id="analytics-unknown"
+            class="analytics-gray"
+          >—</strong>
+        </article>
+
+        <article class="analytics-card">
+          <span>Успешность проверок</span>
+
+          <strong
+            id="analytics-percent"
+            class="analytics-green"
+          >—</strong>
+        </article>
+
       </div>
 
-      <div
-        id="bar-unknown"
-        class="bar-unknown">
+
+      <!-- STATUS DISTRIBUTION -->
+
+      <div class="analytics-distribution">
+
+        <h3>Распределение статусов</h3>
+
+        <div class="analytics-bar">
+
+          <div
+            id="bar-healthy"
+            class="bar-healthy"
+          ></div>
+
+          <div
+            id="bar-warning"
+            class="bar-warning"
+          ></div>
+
+          <div
+            id="bar-critical"
+            class="bar-critical"
+          ></div>
+
+          <div
+            id="bar-unknown"
+            class="bar-unknown"
+          ></div>
+
+        </div>
+
+        <div class="analytics-legend">
+
+          <span class="analytics-green">
+            ● Успешные
+          </span>
+
+          <span class="analytics-yellow">
+            ● Предупреждения
+          </span>
+
+          <span class="analytics-red">
+            ● Критические
+          </span>
+
+          <span class="analytics-gray">
+            ● Неизвестные
+          </span>
+
+        </div>
+
       </div>
 
-    </div>
 
-    <div class="analytics-legend">
-      <span class="analytics-green">
-        ● Успешные
-      </span>
+      <!-- ADVANCED METRICS -->
 
-      <span class="analytics-yellow">
-        ● Предупреждения
-      </span>
+      <section class="metrics-section">
 
-      <span class="analytics-red">
-        ● Критические
-      </span>
+        <h3>Расширенная аналитика</h3>
 
-      <span class="analytics-gray">
-        ● Неизвестные
-      </span>
-    </div>
+        <p
+          id="metrics-message"
+          class="history-message"
+          role="status"
+          hidden
+        ></p>
 
-  </div>
+        <div class="analytics-grid">
 
-<div class="metrics-section">
+          <article class="analytics-card">
 
-  <h3>Расширенная аналитика</h3>
+            <span>Доступность сайта и API по проверкам</span>
 
-  <p
-    id="metrics-message"
-    class="history-message"
-    role="status"
-    hidden>
-  </p>
+            <strong
+              id="metrics-availability"
+              class="analytics-green"
+            >—</strong>
 
-  <div class="analytics-grid">
+          </article>
 
-    <article class="analytics-card">
-      <span>Доступность сайта и API</span>
-      <strong id="metrics-availability">—</strong>
-    </article>
+          <article class="analytics-card">
 
-    <article class="analytics-card">
-      <span>Полнота мониторинга</span>
-      <strong id="metrics-coverage">—</strong>
-    </article>
+            <span>Полнота мониторинга</span>
 
-    <article class="analytics-card">
-      <span>Ожидалось проверок</span>
-      <strong id="metrics-expected">—</strong>
-    </article>
+            <strong
+              id="metrics-coverage"
+              class="analytics-green"
+            >—</strong>
 
-    <article class="analytics-card">
-      <span>Пропущено интервалов</span>
-      <strong
-        id="metrics-missed"
-        class="analytics-red">—</strong>
-    </article>
+          </article>
 
-  </div>
+          <article class="analytics-card">
 
-  <p id="metrics-samples"></p>
+            <span>Ожидаемые проверки</span>
 
-  <div class="metrics-components">
+            <strong id="metrics-expected">
+              —
+            </strong>
 
-    <h3>Стабильность компонентов</h3>
+          </article>
 
-    <div id="metrics-components-list"></div>
+          <article class="analytics-card">
 
-  </div>
+            <span>Пропущенные проверки</span>
 
-  <div class="metrics-doughnut">
+            <strong
+              id="metrics-missed"
+              class="analytics-yellow"
+            >—</strong>
 
-    <h3>Распределение статусов</h3>
+          </article>
 
-    <div class="doughnut-container">
-      <canvas
-        id="monitoring-status-chart"
-        role="img"
-        aria-label="Распределение статусов проверок">
-      </canvas>
-    </div>
+        </div>
 
-  </div>
-
-</div>
-
-<div class="history-section">
-
-  <h3>Динамика количества проблем</h3>
-
-  <p class="history-description">
-    История обнаруженных проблем
-    за выбранный период
-  </p>
-
-  <div
-    id="history-message"
-    class="history-message"
-    role="status"
-    hidden>
-  </div>
-
-  <div class="history-chart-container">
-
-    <canvas
-      id="monitoring-history-chart"
-      role="img"
-      aria-label="График количества проблем мониторинга">
-    </canvas>
-
-  </div>
-
-</div>
-
-<div class="history-table-section">
-
-  <div class="history-table-header">
-
-    <h3>История проверок</h3>
-
-    <select
-      id="history-status-filter"
-      aria-label="Фильтр статуса">
-
-      <option value="all">
-        Все статусы
-      </option>
-
-      <option value="healthy">
-        Успешные
-      </option>
-
-      <option value="warning">
-        Предупреждения
-      </option>
-
-      <option value="critical">
-        Критические
-      </option>
-
-      <option value="unknown">
-        Неизвестные
-      </option>
-
-    </select>
-
-  </div>
-
-  <p id="history-table-count">
-    История ещё не загружена
-  </p>
-
-  <div class="history-table-scroll">
-
-    <table class="monitoring-history-table">
-
-      <thead>
-        <tr>
-          <th>Дата и время</th>
-          <th>Статус</th>
-          <th>Проблемы</th>
-        </tr>
-      </thead>
-
-      <tbody id="history-table-body">
-      </tbody>
-
-    </table>
-
-  </div>
-
-</div>
+        <p id="metrics-samples"></p>
 
 
-  <p id="analytics-updated">
-    Аналитика ещё не загружена
-  </p>
+        <!-- COMPONENT STABILITY -->
 
-</section>
+        <div class="metrics-components">
+
+          <h3>Стабильность компонентов</h3>
+
+          <div id="metrics-components-list">
+          </div>
+
+        </div>
+
+
+        <!-- DOUGHNUT CHART -->
+
+        <div class="metrics-doughnut">
+
+          <h3>Распределение результатов проверок</h3>
+
+          <p
+            id="status-chart-message"
+            class="history-message"
+            role="status"
+            hidden
+          ></p>
+
+          <div class="doughnut-container">
+
+            <canvas
+              id="monitoring-status-chart"
+              aria-label="Распределение статусов мониторинга"
+              role="img"
+            ></canvas>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- HISTORY CHART -->
+
+      <section class="history-section">
+
+        <h3>История количества проблем</h3>
+
+        <p class="history-description">
+          Динамика состояния системы за выбранный период.
+          Разрывы линии означают отсутствие данных мониторинга.
+        </p>
+
+        <p
+          id="history-message"
+          class="history-message"
+          role="status"
+          hidden
+        ></p>
+
+        <p
+          id="history-gap-message"
+          class="history-gap-message"
+          role="status"
+          hidden
+        ></p>
+
+        <div class="history-chart-container">
+
+          <canvas
+            id="monitoring-history-chart"
+            aria-label="История количества проблем"
+            role="img"
+          ></canvas>
+
+        </div>
+
+      </section>
+
+
+      <!-- HISTORY TABLE -->
+
+      <section class="history-table-section">
+
+        <div class="history-table-header">
+
+          <h3>История проверок</h3>
+
+          <div class="history-table-actions">
+
+            <label for="history-status-filter">
+              Статус:
+            </label>
+
+            <select id="history-status-filter">
+
+              <option value="all">
+                Все статусы
+              </option>
+
+              <option value="healthy">
+                Работает
+              </option>
+
+              <option value="warning">
+                Предупреждение
+              </option>
+
+              <option value="critical">
+                Критическая ошибка
+              </option>
+
+              <option value="unknown">
+                Нет данных
+              </option>
+
+            </select>
+
+            <button
+              id="history-export-csv"
+              class="history-export-btn"
+              type="button"
+              disabled
+            >
+              Скачать CSV
+            </button>
+
+          </div>
+
+        </div>
+
+        <p id="history-table-count" role="status">
+          История ещё не загружена
+        </p>
+
+        <div class="history-table-scroll">
+
+          <table class="monitoring-history-table">
+
+            <thead>
+
+              <tr>
+                <th scope="col">Дата и время</th>
+                <th scope="col">Статус</th>
+                <th scope="col">Количество проблем</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="history-table-body">
+            </tbody>
+
+          </table>
+
+        </div>
+
+
+        <!-- PAGINATION -->
+
+        <div class="history-pagination">
+
+          <div class="history-page-size">
+
+            <label for="history-page-size">
+              Записей на странице:
+            </label>
+
+            <select id="history-page-size">
+
+              <option value="10">10</option>
+
+              <option value="25" selected>
+                25
+              </option>
+
+              <option value="50">50</option>
+
+              <option value="100">100</option>
+
+            </select>
+
+          </div>
+
+          <div class="history-page-controls">
+
+            <button
+              id="history-prev-page"
+              type="button"
+              disabled
+            >
+              ← Назад
+            </button>
+
+            <span id="history-page-info">
+              1 / 1
+            </span>
+
+            <button
+              id="history-next-page"
+              type="button"
+              disabled
+            >
+              Вперёд →
+            </button>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <p id="analytics-updated">
+        Аналитика ещё не загружена
+      </p>
+
+    </section>
 
   </main>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+
+
+  <!-- CHART.JS -->
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"
+  ></script>
+
+
+  <!-- MONITORING SCRIPT -->
 
   <script src="/admin/monitoring.js"></script>
-  <form action="/admin/logout" method="POST"
-      style="text-align:center; margin:30px 0;">
-  <button type="submit">
-    Выйти из панели администратора
-  </button>
-</form>
+
 </body>
 </html>

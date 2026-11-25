@@ -157,17 +157,19 @@ app.use(express.urlencoded({
 app.use((req, res, next) => {
   const pathname = req.path.toLowerCase();
 
-  const protectedFiles = [
-    '/monitoring.html',
-    '/monitoring.js',
-    '/admin-monitoring.html',
-    '/frontend/monitoring.html',
-    '/frontend/monitoring.js',
-    '/frontend/admin-monitoring.html',
-    '/server.js',
-    '/package.json',
-    '/package-lock.json'
-  ];
+const protectedFiles = [
+  '/monitoring.html',
+  '/monitoring.js',
+  '/monitoring.css',
+  '/admin-monitoring.html',
+  '/frontend/monitoring.html',
+  '/frontend/monitoring.js',
+  '/frontend/monitoring.css',
+  '/frontend/admin-monitoring.html',
+  '/server.js',
+  '/package.json',
+  '/package-lock.json'
+];
 
   if (
     protectedFiles.includes(pathname) ||
@@ -1094,6 +1096,15 @@ app.get('/admin/monitoring.js', requireAdmin, (req, res) => {
 
   res.sendFile(
     path.join(__dirname, 'frontend', 'monitoring.js')
+  );
+});
+
+// Защищённые CSS-стили административной панели
+app.get('/admin/monitoring.css', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+
+  res.sendFile(
+    path.join(__dirname, 'frontend', 'monitoring.css')
   );
 });
 

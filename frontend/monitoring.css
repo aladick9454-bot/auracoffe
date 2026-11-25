@@ -1,6 +1,14 @@
 
+/* ========================================
+   AURA COFFEE — MONITORING STYLES
+======================================== */
+
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -10,11 +18,27 @@ body {
   color: #f9fafb;
 }
 
+button,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #fbbf24;
+  outline-offset: 3px;
+}
+
 .dashboard {
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 24px;
 }
+
+
+/* ========================================
+   DASHBOARD HEADER
+======================================== */
 
 .dashboard-header {
   display: flex;
@@ -41,6 +65,11 @@ body {
   font-weight: bold;
 }
 
+
+/* ========================================
+   MAIN MONITORING
+======================================== */
+
 .dashboard-grid {
   display: grid;
   grid-template-columns:
@@ -49,6 +78,7 @@ body {
 }
 
 .monitor-card {
+  min-width: 0;
   background: #1f2937;
   padding: 28px;
   border-radius: 16px;
@@ -65,6 +95,7 @@ body {
   margin: 0;
   font-size: 24px;
   font-weight: bold;
+  overflow-wrap: anywhere;
 }
 
 .healthy {
@@ -88,17 +119,10 @@ footer {
   color: #9ca3af;
 }
 
-@media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
 
-  .dashboard-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
+/* ========================================
+   FRESHNESS WARNING
+======================================== */
 
 .freshness-warning {
   padding: 16px 20px;
@@ -111,18 +135,15 @@ footer {
   line-height: 1.5;
 }
 
-.freshness-warning[hidden] {
-  display: none;
-}
-
 .monitoring-stale {
   opacity: 0.55;
   filter: grayscale(0.8);
 }
- 
-/* =========================
+
+
+/* ========================================
    MONITORING ANALYTICS
-========================= */
+======================================== */
 
 .analytics-section {
   margin-top: 40px;
@@ -179,6 +200,11 @@ footer {
   font-weight: 600;
 }
 
+
+/* ========================================
+   ANALYTICS CARDS
+======================================== */
+
 .analytics-grid {
   display: grid;
   grid-template-columns:
@@ -221,6 +247,11 @@ footer {
 .analytics-gray {
   color: #9ca3af;
 }
+
+
+/* ========================================
+   STATUS DISTRIBUTION
+======================================== */
 
 .analytics-distribution {
   margin-top: 24px;
@@ -288,86 +319,10 @@ footer {
   border-radius: 8px;
 }
 
-.analytics-error[hidden] {
-  display: none;
-}
 
-@media (max-width: 900px) {
-  .analytics-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 550px) {
-  .analytics-section {
-    padding: 16px;
-  }
-
-  .analytics-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .analytics-card strong {
-    font-size: 28px;
-  }
-}
-
-
-/* =========================
-   MONITORING HISTORY
-========================= */
-
-.history-section {
-  margin-top: 24px;
-  padding: 22px;
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 12px;
-}
-
-.history-section h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
-}
-
-.history-description {
-  margin: 0 0 24px;
-  font-size: 14px;
-  color: #9ca3af;
-}
-
-.history-chart-container {
-  position: relative;
-  width: 100%;
-  height: 320px;
-}
-
-.history-message {
-  margin-bottom: 16px;
-  padding: 12px;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.08);
-  border-radius: 8px;
-}
-
-.history-message[hidden] {
-  display: none;
-}
-
-@media (max-width: 550px) {
-  .history-section {
-    padding: 14px;
-  }
-
-  .history-chart-container {
-    height: 250px;
-  }
-}
-
-/* =========================
+/* ========================================
    ADVANCED METRICS
-========================= */
+======================================== */
 
 .metrics-section {
   margin-top: 28px;
@@ -384,6 +339,11 @@ footer {
   background: #1f2937;
   border: 1px solid #374151;
   border-radius: 12px;
+}
+
+.metrics-components h3,
+.metrics-doughnut h3 {
+  margin-top: 0;
 }
 
 .metrics-component {
@@ -422,16 +382,65 @@ footer {
   color: #9ca3af;
 }
 
-@media (max-width: 550px) {
-  .metrics-components,
-  .metrics-doughnut {
-    padding: 14px;
-  }
 
-  .doughnut-container {
-    height: 240px;
-  }
+/* ========================================
+   MONITORING HISTORY CHART
+======================================== */
+
+.history-section {
+  margin-top: 24px;
+  padding: 22px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
 }
+
+.history-section h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.history-description {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
+.history-chart-container {
+  position: relative;
+  width: 100%;
+  height: 320px;
+}
+
+.history-message {
+  margin-bottom: 16px;
+  padding: 12px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border-radius: 8px;
+}
+
+
+/* ========================================
+   MONITORING GAPS
+======================================== */
+
+.history-gap-message {
+  padding: 12px 16px;
+  margin: 12px 0;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  color: #fbbf24;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+
+/* ========================================
+   HISTORY TABLE
+======================================== */
 
 .history-table-section {
   margin-top: 24px;
@@ -447,6 +456,22 @@ footer {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+.history-table-header h3 {
+  margin: 0;
+}
+
+.history-table-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.history-table-actions label {
+  font-size: 14px;
+  color: #9ca3af;
 }
 
 #history-status-filter {
@@ -486,4 +511,176 @@ footer {
 #history-table-count {
   color: #9ca3af;
   font-size: 13px;
+}
+
+
+/* ========================================
+   HISTORY PAGINATION
+======================================== */
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.history-page-size,
+.history-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.history-pagination button,
+.history-pagination select {
+  padding: 9px 14px;
+  background: #111827;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}
+
+.history-pagination button {
+  cursor: pointer;
+}
+
+.history-pagination button:hover:not(:disabled) {
+  border-color: #fbbf24;
+}
+
+.history-pagination button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#history-page-info {
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+
+/* ========================================
+   CSV EXPORT
+======================================== */
+
+.history-export-btn {
+  padding: 10px 16px;
+  background: #fbbf24;
+  color: #111827;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.history-export-btn:hover:not(:disabled) {
+  background: #f59e0b;
+}
+
+.history-export-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+
+/* ========================================
+   RESPONSIVE DESIGN
+======================================== */
+
+@media (max-width: 900px) {
+
+  .analytics-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 768px) {
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+}
+
+@media (max-width: 550px) {
+
+  .dashboard {
+    padding: 24px 12px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 28px;
+  }
+
+  .analytics-section {
+    padding: 16px;
+  }
+
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-card strong {
+    font-size: 28px;
+  }
+
+  .history-section,
+  .history-table-section,
+  .metrics-components,
+  .metrics-doughnut {
+    padding: 14px;
+  }
+
+  .history-chart-container {
+    height: 250px;
+  }
+
+  .doughnut-container {
+    height: 240px;
+  }
+
+  .history-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .history-page-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .history-table-actions {
+    width: 100%;
+  }
+
+  .history-export-btn {
+    width: 100%;
+  }
+
+  .monitoring-history-table {
+    min-width: 450px;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+
 }
