@@ -39,28 +39,251 @@ async function checkDatabaseConnection() {
 
 checkDatabaseConnection();
 
-// Сохранение мониторинга в PostgreSQL
-async function saveMonitoringSnapshot(data) {
-  const query = `
-    INSERT INTO monitoring_snapshots (
-      checked_at,
-      overall_status,
-      problems_count,
-      components
-    )
-    VALUES ($1, $2, $3, $4::jsonb)
-    ON CONFLICT (checked_at) DO NOTHING
-  `;
 
-  const values = [
-    data.checked_at,
-    data.overall_status,
-    data.problems_count,
-    JSON.stringify(data.components)
-  ];
+// ========================================
+// SAVE SNAPSHOT AND PROCESS INCIDENTS
+// ========================================
 
-  await pool.query(query, values);
+async function saveMonitoringSnapshot(snapshot) {
+
+  const client = await pool.connect();
+
+  try {
+
+    await client.query('BEGIN');
+
+    // Блокируем строку состояния обработки,
+    // чтобы параллельные запросы выполнялись
+    // последовательно.
+
+    const stateResult = await client.query(`
+
+      SELECT last_processed_at
+
+      FROM monitoring_incident_processing_state
+
+      WHERE id = 1
+
+      FOR UPDATE
+
+    `);
+
+    if (stateResult.rows.length !== 1) {
+
+      throw new Error(
+        'Incident processing state is missing'
+      );
+
+    }
+
+    // Сохраняем проверку мониторинга.
+
+    const insertResult = await client.query(
+
+      `
+
+        INSERT INTO monitoring_snapshots (
+
+          checked_at,
+
+          overall_status,
+
+          problems_count,
+
+          components
+
+        )
+
+        VALUES (
+
+          $1::timestamptz,
+
+          $2,
+
+          $3,
+
+          $4::jsonb
+
+        )
+
+        ON CONFLICT (checked_at)
+
+        DO NOTHING
+
+        RETURNING id;
+
+      `,
+
+      [
+
+        snapshot.checked_at,
+
+        snapshot.overall_status,
+
+        snapshot.problems_count,
+
+        JSON.stringify(snapshot.components)
+
+      ]
+
+    );
+
+    // Повторная отправка той же проверки.
+
+    if (insertResult.rowCount === 0) {
+
+      await client.query('COMMIT');
+
+      return {
+
+        inserted: false,
+
+        duplicate: true,
+
+        incidents_processed: false
+
+      };
+
+    }
+
+    // Проверяем хронологический порядок.
+
+    const freshnessResult = await client.query(
+
+      `
+
+        SELECT (
+
+          $1::timestamptz > COALESCE(
+
+            last_processed_at,
+
+            '-infinity'::timestamptz
+
+          )
+
+        ) AS is_newer
+
+        FROM monitoring_incident_processing_state
+
+        WHERE id = 1
+
+      `,
+
+      [snapshot.checked_at]
+
+    );
+
+    const isNewer =
+      freshnessResult.rows[0].is_newer;
+
+    // Устаревшую проверку сохраняем в истории,
+    // но не изменяем текущие инциденты.
+
+    if (!isNewer) {
+
+      await client.query('COMMIT');
+
+      return {
+
+        inserted: true,
+
+        duplicate: false,
+
+        incidents_processed: false,
+
+        reason: 'out_of_order_snapshot'
+
+      };
+
+    }
+
+    // Обрабатываем инциденты.
+
+    const incidentResult =
+
+      await processMonitoringIncidents(
+
+        client,
+
+        snapshot
+
+      );
+
+    // Запоминаем последнюю обработанную проверку.
+
+    await client.query(
+
+      `
+
+        UPDATE
+          monitoring_incident_processing_state
+
+        SET
+
+          last_processed_at =
+            $1::timestamptz,
+
+          updated_at = NOW()
+
+        WHERE id = 1
+
+      `,
+
+      [snapshot.checked_at]
+
+    );
+
+    await client.query('COMMIT');
+
+    console.log(
+
+      'Monitoring incidents processed:',
+
+      incidentResult
+
+    );
+
+    return {
+
+      inserted: true,
+
+      duplicate: false,
+
+      incidents_processed: true,
+
+      incidents: incidentResult
+
+    };
+
+  } catch (error) {
+
+    try {
+
+      await client.query('ROLLBACK');
+
+    } catch (rollbackError) {
+
+      console.error(
+
+        'Monitoring rollback failed:',
+
+        rollbackError.message
+
+      );
+
+    }
+
+    throw error;
+
+  } finally {
+
+    client.release();
+
+  }
+
 }
+
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -468,7 +691,7 @@ const validTimestamp =
   }
 
   try {
-    await saveMonitoringSnapshot(data);
+    await saveMonitoringSnapshot(snapshot);
 
     return res.json({
       ok: true
@@ -715,6 +938,420 @@ async function getMonitoringComparison(hours) {
 // ========================================
 // INCIDENT MANAGEMENT
 // ========================================
+
+
+// ========================================
+// INCIDENT COMPONENT CONFIGURATION
+// ========================================
+
+const INCIDENT_COMPONENT_CONFIG = {
+
+  system_health: {
+    name: 'CRM',
+    warning: 'Предупреждение в работе CRM',
+    critical: 'Критическая ошибка CRM'
+  },
+
+  availability: {
+    name: 'Сайт и API',
+    warning: 'Проблемы доступности сайта или API',
+    critical: 'Критическая проблема доступности'
+  },
+
+  performance_frontend: {
+    name: 'Frontend',
+    warning: 'Снижение производительности Frontend',
+    critical: 'Критическая проблема Frontend'
+  },
+
+  performance_backend: {
+    name: 'Backend',
+    warning: 'Снижение производительности Backend',
+    critical: 'Критическая проблема Backend'
+  },
+
+  daily_reports: {
+    name: 'Ежедневные отчёты',
+    warning: 'Проблема с ежедневными отчётами',
+    critical: 'Критическая ошибка ежедневных отчётов'
+  }
+
+};
+
+
+function buildIncidentData(component, status) {
+
+  if (
+    !Object.hasOwn(
+      INCIDENT_COMPONENT_CONFIG,
+      component
+    )
+  ) {
+
+    return null;
+
+  }
+
+  if (
+    status !== 'warning' &&
+    status !== 'critical'
+  ) {
+
+    return null;
+
+  }
+
+  const config =
+    INCIDENT_COMPONENT_CONFIG[component];
+
+  return {
+
+    component,
+
+    severity: status,
+
+    title: config[status],
+
+    description:
+
+      `Мониторинг обнаружил проблему. ` +
+      `Компонент: ${config.name}. ` +
+      `Статус проверки: ${status}.`
+
+  };
+
+}
+
+
+// ========================================
+// OPEN OR UPDATE INCIDENT
+// ========================================
+
+async function openOrUpdateIncident(
+  client,
+  incident,
+  checkedAt
+) {
+
+  const query = `
+
+    INSERT INTO monitoring_incidents AS existing (
+
+      component,
+
+      title,
+
+      description,
+
+      severity,
+
+      status,
+
+      opened_at,
+
+      last_seen_at,
+
+      occurrences
+
+    )
+
+    VALUES (
+
+      $1,
+
+      $2,
+
+      $3,
+
+      $4,
+
+      'open',
+
+      $5::timestamptz,
+
+      $5::timestamptz,
+
+      1
+
+    )
+
+    ON CONFLICT (component)
+
+    WHERE status IN (
+      'open',
+      'acknowledged'
+    )
+
+    DO UPDATE SET
+
+      last_seen_at =
+        EXCLUDED.last_seen_at,
+
+      occurrences =
+        existing.occurrences + 1,
+
+      severity = CASE
+
+        WHEN existing.severity = 'critical'
+          OR EXCLUDED.severity = 'critical'
+
+        THEN 'critical'
+
+        ELSE 'warning'
+
+      END,
+
+      title = CASE
+
+        WHEN existing.severity = 'critical'
+
+        THEN existing.title
+
+        ELSE EXCLUDED.title
+
+      END,
+
+      description =
+        EXCLUDED.description,
+
+      updated_at = NOW()
+
+    WHERE EXCLUDED.last_seen_at
+      > existing.last_seen_at
+
+    RETURNING *;
+
+  `;
+
+  const result = await client.query(
+
+    query,
+
+    [
+
+      incident.component,
+
+      incident.title,
+
+      incident.description,
+
+      incident.severity,
+
+      checkedAt
+
+    ]
+
+  );
+
+  return result.rows[0] || null;
+
+}
+
+
+// ========================================
+// AUTOMATIC INCIDENT RESOLUTION
+// ========================================
+
+async function resolveMonitoringIncident(
+  client,
+  component,
+  checkedAt
+) {
+
+  const query = `
+
+    UPDATE monitoring_incidents
+
+    SET
+
+      status = 'resolved',
+
+      resolved_at = $2::timestamptz,
+
+      updated_at = NOW()
+
+    WHERE component = $1
+
+      AND status IN (
+
+        'open',
+
+        'acknowledged'
+
+      )
+
+      AND last_seen_at < $2::timestamptz
+
+    RETURNING *;
+
+  `;
+
+  const result = await client.query(
+
+    query,
+
+    [
+
+      component,
+
+      checkedAt
+
+    ]
+
+  );
+
+  return result.rows[0] || null;
+
+}
+
+
+// ========================================
+// PROCESS MONITORING INCIDENTS
+// ========================================
+
+async function processMonitoringIncidents(
+  client,
+  snapshot
+) {
+
+  const checkedAt =
+    snapshot.checked_at;
+
+  const components =
+    snapshot.components;
+
+  const result = {
+
+    opened: 0,
+
+    updated: 0,
+
+    resolved: 0,
+
+    ignored: 0
+
+  };
+
+  for (
+    const component of
+    Object.keys(INCIDENT_COMPONENT_CONFIG)
+  ) {
+
+    const status =
+      components?.[component]?.status;
+
+    // Отсутствие данных не означает восстановление.
+
+    if (
+
+      !status ||
+
+      status === 'unknown'
+
+    ) {
+
+      result.ignored++;
+
+      continue;
+
+    }
+
+    // Компонент восстановился.
+
+    if (status === 'healthy') {
+
+      const resolvedIncident =
+
+        await resolveMonitoringIncident(
+
+          client,
+
+          component,
+
+          checkedAt
+
+        );
+
+      if (resolvedIncident) {
+
+        result.resolved++;
+
+      }
+
+      continue;
+
+    }
+
+    // Обнаружена проблема.
+
+    if (
+
+      status === 'warning' ||
+
+      status === 'critical'
+
+    ) {
+
+      const incidentData =
+
+        buildIncidentData(
+
+          component,
+
+          status
+
+        );
+
+      if (!incidentData) {
+
+        result.ignored++;
+
+        continue;
+
+      }
+
+      const incident =
+
+        await openOrUpdateIncident(
+
+          client,
+
+          incidentData,
+
+          checkedAt
+
+        );
+
+      if (!incident) {
+
+        result.ignored++;
+
+        continue;
+
+      }
+
+      if (incident.occurrences === 1) {
+
+        result.opened++;
+
+      } else {
+
+        result.updated++;
+
+      }
+
+      continue;
+
+    }
+
+    result.ignored++;
+
+  }
+
+  return result;
+
+}
+
 
 async function getMonitoringIncidents({
 
