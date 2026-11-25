@@ -5441,3 +5441,665 @@ if (
 
 
 })();
+
+
+// ========================================
+// INCIDENT PERFORMANCE METRICS MODULE
+// ========================================
+
+;(() => {
+
+  "use strict";
+
+  const API_URL =
+    "/api/monitoring/incident-metrics";
+
+  const REFRESH_INTERVAL = 60000;
+
+  const REQUEST_TIMEOUT = 15000;
+
+  let controller = null;
+
+  let requestId = 0;
+
+  let hasLoaded = false;
+
+
+  // ======================================
+  // DOM HELPERS
+  // ======================================
+
+  function getElement(id) {
+
+    return document.getElementById(id);
+
+  }
+
+
+  function setText(id, value) {
+
+    const element = getElement(id);
+
+    if (element) {
+
+      element.textContent = value ?? "—";
+
+    }
+
+  }
+
+
+  function showMessage(
+    message = "",
+    isError = false
+  ) {
+
+    const element = getElement(
+      "incident-metrics-message"
+    );
+
+    if (!element) return;
+
+    element.textContent = message;
+
+    element.hidden = !message;
+
+    element.classList.toggle(
+      "is-error",
+      isError
+    );
+
+  }
+
+
+  // ======================================
+  // FORMATTERS
+  // ======================================
+
+  function isValidNumber(value) {
+
+    return (
+      value !== null &&
+      value !== undefined &&
+      value !== "" &&
+      Number.isFinite(Number(value))
+    );
+
+  }
+
+
+  function formatMinutes(value) {
+
+    if (!isValidNumber(value)) {
+
+      return "—";
+
+    }
+
+    return `${Number(value).toLocaleString(
+      "ru-RU",
+      {
+        maximumFractionDigits: 2
+      }
+    )} мин.`;
+
+  }
+
+
+  function formatPercent(value) {
+
+    if (!isValidNumber(value)) {
+
+      return "—";
+
+    }
+
+    return `${Number(value).toLocaleString(
+      "ru-RU",
+      {
+        maximumFractionDigits: 2
+      }
+    )}%`;
+
+  }
+
+
+  function formatDate(value) {
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+
+      return "Нет данных";
+
+    }
+
+    return date.toLocaleString(
+      "ru-RU",
+      {
+        timeZone: "Asia/Novosibirsk"
+      }
+    );
+
+  }
+
+
+  // ======================================
+  // SLA COLORS
+  // ======================================
+
+  function setSlaValue(id, value) {
+
+    const element = getElement(id);
+
+    if (!element) return;
+
+    element.textContent =
+      formatPercent(value);
+
+    element.classList.remove(
+      "ipm-green",
+      "ipm-yellow",
+      "ipm-red",
+      "ipm-gray"
+    );
+
+    if (!isValidNumber(value)) {
+
+      element.classList.add(
+        "ipm-gray"
+      );
+
+      return;
+
+    }
+
+    const percent = Number(value);
+
+    if (percent >= 95) {
+
+      element.classList.add(
+        "ipm-green"
+      );
+
+    } else if (percent >= 80) {
+
+      element.classList.add(
+        "ipm-yellow"
+      );
+
+    } else {
+
+      element.classList.add(
+        "ipm-red"
+      );
+
+    }
+
+  }
+
+
+  // ======================================
+  // RENDER METRICS
+  // ======================================
+
+  function renderMetrics(data) {
+
+    const metrics = data.metrics;
+
+
+    // MTTA
+
+    setText(
+      "incident-mtta",
+      formatMinutes(
+        metrics.mtta_minutes
+      )
+    );
+
+    setText(
+      "incident-mtta-sample",
+      `Выборка: ${metrics.acknowledged_incidents}`
+    );
+
+
+    // MTTR
+
+    setText(
+      "incident-mttr",
+      formatMinutes(
+        metrics.mttr_minutes
+      )
+    );
+
+    setText(
+      "incident-mttr-sample",
+      `Выборка: ${metrics.resolved_incidents}`
+    );
+
+
+    // Response SLA
+
+    setSlaValue(
+      "incident-response-sla",
+      metrics.response_sla_percent
+    );
+
+    setText(
+      "incident-response-details",
+      `Вовремя: ${metrics.response_met} · Нарушено: ${metrics.response_breached}`
+    );
+
+
+    // Resolution SLA
+
+    setSlaValue(
+      "incident-resolution-sla",
+      metrics.resolution_sla_percent
+    );
+
+    setText(
+      "incident-resolution-details",
+      `Вовремя: ${metrics.resolution_met} · Нарушено: ${metrics.resolution_breached}`
+    );
+
+
+    // Incident counters
+
+    setText(
+      "incident-metrics-total",
+      metrics.total_incidents
+    );
+
+    setText(
+      "incident-metrics-resolved",
+      metrics.resolved_incidents
+    );
+
+
+    // Telegram counters
+
+    setText(
+      "incident-notifications-sent",
+      metrics.notifications_sent
+    );
+
+    setText(
+      "incident-notifications-pending",
+      metrics.notifications_pending
+    );
+
+    setText(
+      "incident-notifications-dead",
+      metrics.notifications_dead
+    );
+
+
+    // Last update
+
+    setText(
+      "incident-metrics-updated",
+      `Обновлено: ${formatDate(data.generated_at)} (НСК)`
+    );
+
+  }
+
+
+  // ======================================
+  // RESET METRICS
+  // ======================================
+
+  function resetMetrics() {
+
+    const ids = [
+
+      "incident-mtta",
+
+      "incident-mttr",
+
+      "incident-response-sla",
+
+      "incident-resolution-sla",
+
+      "incident-metrics-total",
+
+      "incident-metrics-resolved",
+
+      "incident-notifications-sent",
+
+      "incident-notifications-pending",
+
+      "incident-notifications-dead"
+
+    ];
+
+    for (const id of ids) {
+
+      setText(id, "—");
+
+    }
+
+    const detailIds = [
+
+      "incident-mtta-sample",
+
+      "incident-mttr-sample",
+
+      "incident-response-details",
+
+      "incident-resolution-details"
+
+    ];
+
+    for (const id of detailIds) {
+
+      setText(id, "Нет данных");
+
+    }
+
+    setSlaValue(
+      "incident-response-sla",
+      null
+    );
+
+    setSlaValue(
+      "incident-resolution-sla",
+      null
+    );
+
+  }
+
+
+  // ======================================
+  // LOAD METRICS
+  // ======================================
+
+  async function loadMetrics(
+    force = false
+  ) {
+
+    if (!force && document.hidden) {
+
+      return;
+
+    }
+
+    if (!force && controller) {
+
+      return;
+
+    }
+
+    const currentRequest =
+      ++requestId;
+
+    if (controller) {
+
+      controller.abort();
+
+    }
+
+    const localController =
+      new AbortController();
+
+    controller = localController;
+
+    const periodElement =
+      getElement(
+        "incident-metrics-period"
+      );
+
+    const refreshButton =
+      getElement(
+        "incident-metrics-refresh"
+      );
+
+    const period =
+      periodElement.value;
+
+    refreshButton.disabled = true;
+
+    if (!hasLoaded || force) {
+
+      showMessage(
+        "Загрузка аналитики..."
+      );
+
+    }
+
+    const timeout = setTimeout(
+      () => localController.abort(),
+      REQUEST_TIMEOUT
+    );
+
+    try {
+
+      const response = await fetch(
+
+        `${API_URL}?period=${encodeURIComponent(period)}`,
+
+        {
+
+          method: "GET",
+
+          credentials: "same-origin",
+
+          cache: "no-store",
+
+          signal: localController.signal
+
+        }
+
+      );
+
+      if (currentRequest !== requestId) {
+
+        return;
+
+      }
+
+      if (response.status === 401) {
+
+        window.location.href =
+          "/admin/login";
+
+        return;
+
+      }
+
+      if (!response.ok) {
+
+        throw new Error(
+          `HTTP ${response.status}`
+        );
+
+      }
+
+      const data =
+        await response.json();
+
+      if (currentRequest !== requestId) {
+
+        return;
+
+      }
+
+      if (
+        data.ok !== true ||
+        data.period !== period ||
+        !data.metrics ||
+        typeof data.metrics !== "object"
+      ) {
+
+        throw new Error(
+          "Invalid incident metrics response"
+        );
+
+      }
+
+      renderMetrics(data);
+
+      hasLoaded = true;
+
+      showMessage("");
+
+      console.log(
+        "Incident performance metrics loaded:",
+        data.metrics
+      );
+
+    } catch (error) {
+
+      if (currentRequest !== requestId) {
+
+        return;
+
+      }
+
+      resetMetrics();
+
+      hasLoaded = false;
+
+      setText(
+        "incident-metrics-updated",
+        "Данные недоступны"
+      );
+
+      showMessage(
+        "Не удалось загрузить аналитику инцидентов",
+        true
+      );
+
+      console.error(
+        "Incident performance metrics error:",
+        error
+      );
+
+    } finally {
+
+      clearTimeout(timeout);
+
+      if (currentRequest === requestId) {
+
+        controller = null;
+
+        refreshButton.disabled = false;
+
+      }
+
+    }
+
+  }
+
+
+  // ======================================
+  // INITIALIZATION
+  // ======================================
+
+  function initialize() {
+
+    const dashboard =
+      getElement(
+        "incident-performance-dashboard"
+      );
+
+    if (!dashboard) {
+
+      return;
+
+    }
+
+    if (
+      dashboard.dataset.initialized
+      === "true"
+    ) {
+
+      return;
+
+    }
+
+    dashboard.dataset.initialized =
+      "true";
+
+
+    // Period selector
+
+    getElement(
+      "incident-metrics-period"
+    ).addEventListener(
+      "change",
+      () => {
+
+        resetMetrics();
+
+        hasLoaded = false;
+
+        loadMetrics(true);
+
+      }
+    );
+
+
+    // Manual refresh
+
+    getElement(
+      "incident-metrics-refresh"
+    ).addEventListener(
+      "click",
+      () => loadMetrics(true)
+    );
+
+
+    // Refresh when returning to tab
+
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+
+        if (!document.hidden) {
+
+          loadMetrics();
+
+        }
+
+      }
+    );
+
+
+    // First request
+
+    loadMetrics(true);
+
+
+    // Automatic refresh
+
+    setInterval(
+      () => loadMetrics(),
+      REFRESH_INTERVAL
+    );
+
+
+    console.log(
+      "Incident performance metrics initialized successfully"
+    );
+
+  }
+
+
+  if (
+    document.readyState === "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      { once: true }
+    );
+
+  } else {
+
+    initialize();
+
+  }
+
+})();

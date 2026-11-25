@@ -1463,3 +1463,225 @@ footer {
   }
 
 }
+
+
+/* ========================================
+   INCIDENT PERFORMANCE DASHBOARD
+======================================== */
+
+.ipm-section {
+  margin-top: 32px;
+  padding: 24px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 16px;
+  color: #f9fafb;
+}
+
+.ipm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.ipm-header h2 {
+  margin: 0 0 8px;
+  color: #f5c76b;
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.ipm-header p {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.ipm-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+#incident-metrics-period {
+  min-height: 42px;
+  padding: 10px 14px;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#incident-metrics-refresh {
+  min-height: 42px;
+  padding: 10px 16px;
+  background: #f5c76b;
+  color: #111827;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+#incident-metrics-refresh:hover {
+  background: #fbbf24;
+}
+
+#incident-metrics-refresh:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+#incident-metrics-period:focus-visible,
+#incident-metrics-refresh:focus-visible {
+  outline: 2px solid #f5c76b;
+  outline-offset: 3px;
+}
+
+.ipm-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ipm-card {
+  min-width: 0;
+  min-height: 115px;
+  padding: 20px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+}
+
+.ipm-label {
+  display: block;
+  margin-bottom: 12px;
+  color: #9ca3af;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ipm-value {
+  display: block;
+  color: #f5c76b;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.ipm-card small {
+  display: block;
+  margin-top: 10px;
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ipm-subtitle {
+  margin: 28px 0 16px;
+  color: #f5c76b;
+  font-size: 18px;
+}
+
+.ipm-green {
+  color: #4ade80;
+}
+
+.ipm-yellow {
+  color: #fbbf24;
+}
+
+.ipm-red {
+  color: #f87171;
+}
+
+.ipm-gray {
+  color: #9ca3af;
+}
+
+.ipm-note {
+  margin: 20px 0 8px;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ipm-updated {
+  margin: 8px 0 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.ipm-message {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  color: #bfdbfe;
+  font-size: 14px;
+}
+
+.ipm-message[hidden] {
+  display: none;
+}
+
+.ipm-message.is-error {
+  background: #450a0a;
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+@media (max-width: 900px) {
+
+  .ipm-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  .ipm-section {
+    padding: 16px;
+  }
+
+  .ipm-header h2 {
+    font-size: 20px;
+  }
+
+  .ipm-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ipm-card {
+    padding: 16px;
+  }
+
+  .ipm-value {
+    font-size: 26px;
+  }
+
+  .ipm-controls {
+    width: 100%;
+  }
+
+  #incident-metrics-period,
+  #incident-metrics-refresh {
+    flex: 1;
+  }
+
+}
