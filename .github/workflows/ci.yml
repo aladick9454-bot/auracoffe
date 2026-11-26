@@ -55,13 +55,12 @@ jobs:
         run: |
           echo "## AURA COFFEE - Code Quality" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-          echo "Branch: $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
           echo "Result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
 
 
   database:
 
-    name: PostgreSQL Integration Tests
+    name: PostgreSQL Migrations and Integration Tests
 
     needs: quality
 
@@ -69,7 +68,15 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    timeout-minutes: 10
+    timeout-minutes: 15
+
+    concurrency:
+      group: aura-test-database
+      cancel-in-progress: false
+
+    env:
+      MIGRATION_TARGET: test
+      CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
 
     steps:
 
@@ -86,9 +93,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check migration status
+        run: npm run db:status
+
+      - name: Apply test database migrations
+        run: npm run db:migrate
+
+      - name: Verify database migrations
+        run: npm run db:verify
+
       - name: Run SQL tests
-        env:
-          CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
         run: npm run test:db
 
 
@@ -135,7 +149,6 @@ jobs:
         continue-on-error: true
         env:
           CI_WORKFLOW: ci
-          CLOUD_MONITOR_SECRET: ""
           CI_MONITOR_SECRET: ${{ secrets.CI_MONITOR_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

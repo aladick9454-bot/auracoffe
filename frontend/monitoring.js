@@ -10304,3 +10304,441 @@ if (
 
 })();
 
+/* =====================================
+   DATABASE MIGRATION DASHBOARD
+===================================== */
+
+;(() => {
+
+    "use strict";
+
+
+    function initializeMigrationDashboard() {
+
+        const dashboard = document.getElementById(
+
+            "migration-dashboard"
+        );
+
+
+        if (!dashboard) {
+
+            return;
+        }
+
+
+        const get = id =>
+
+            document.getElementById(id);
+
+
+        let loading = false;
+
+
+        function formatDate(value) {
+
+            if (!value) {
+
+                return "—";
+            }
+
+
+            const date = new Date(value);
+
+
+            if (Number.isNaN(date.getTime())) {
+
+                return "—";
+            }
+
+
+            return date.toLocaleString(
+
+                "ru-RU",
+
+                {
+
+                    timeZone: "Asia/Novosibirsk"
+                }
+            );
+        }
+
+
+        async function request(url) {
+
+            const response = await fetch(url, {
+
+                credentials: "same-origin",
+
+                cache: "no-store",
+
+                signal: AbortSignal.timeout(15000)
+            });
+
+
+            if (response.status === 401) {
+
+                window.location.href = "/admin/login";
+
+
+                throw new Error(
+
+                    "Authentication required"
+                );
+            }
+
+
+            const data = await response.json();
+
+
+            if (!response.ok || !data.ok) {
+
+                throw new Error(
+
+                    data.error ||
+
+                    `HTTP ${response.status}`
+                );
+            }
+
+
+            return data;
+        }
+
+
+        function appendCell(row, value) {
+
+            const cell = document.createElement("td");
+
+
+            cell.textContent = value ?? "—";
+
+
+            row.appendChild(cell);
+
+
+            return cell;
+        }
+
+
+        function renderSummary(summary) {
+
+            get("migration-version").textContent =
+
+                summary.current_version || "—";
+
+
+            get("migration-applied").textContent =
+
+                summary.total_migrations ?? 0;
+
+
+            get("migration-pending").textContent =
+
+                summary.pending_migrations ?? "—";
+
+
+            get("migration-duration").textContent =
+
+                `${Number(
+
+                    summary.average_execution_ms || 0
+
+                ).toFixed(1)} ms`;
+
+
+            get("migration-last").textContent =
+
+                formatDate(summary.last_migration_at);
+
+
+            const integrity = get("migration-integrity");
+
+
+            const status = [
+
+                "healthy",
+
+                "warning",
+
+                "critical"
+
+            ].includes(summary.status)
+
+                ? summary.status
+
+                : "critical";
+
+
+            integrity.classList.remove(
+
+                "migration-healthy",
+
+                "migration-warning",
+
+                "migration-critical"
+            );
+
+
+            integrity.classList.add(
+
+                `migration-${status}`
+            );
+
+
+            const labels = {
+
+                healthy: "Verified",
+
+                warning: "Pending",
+
+                critical: "Failed"
+            };
+
+
+            integrity.textContent = labels[status];
+
+
+            const message = get("migration-message");
+
+
+            message.className =
+
+                `migration-${status}`;
+
+
+            message.textContent = summary.reason;
+        }
+
+
+        function renderHistory(migrations) {
+
+            const body = get("migration-history");
+
+
+            body.replaceChildren();
+
+
+            if (!migrations.length) {
+
+                const row = document.createElement("tr");
+
+
+                const cell = appendCell(
+
+                    row,
+
+                    "Миграции пока отсутствуют"
+                );
+
+
+                cell.colSpan = 5;
+
+
+                body.appendChild(row);
+
+
+                return;
+            }
+
+
+            for (const migration of migrations) {
+
+                const row = document.createElement("tr");
+
+
+                appendCell(
+
+                    row,
+
+                    migration.version
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    migration.name
+                );
+
+
+                const checksum = String(
+
+                    migration.checksum || ""
+                );
+
+
+                const checksumCell = appendCell(
+
+                    row,
+
+                    checksum.slice(0, 16) + "..."
+                );
+
+
+                checksumCell.className =
+
+                    "migration-checksum";
+
+
+                checksumCell.title = checksum;
+
+
+                appendCell(
+
+                    row,
+
+                    `${migration.execution_ms} ms`
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    formatDate(migration.applied_at)
+                );
+
+
+                body.appendChild(row);
+            }
+        }
+
+
+        async function loadDashboard() {
+
+            if (loading) {
+
+                return;
+            }
+
+
+            loading = true;
+
+
+            const button = get("migration-refresh");
+
+
+            button.disabled = true;
+
+
+            const message = get("migration-message");
+
+
+            message.textContent =
+
+                "Обновление данных...";
+
+
+            try {
+
+                const [summary, history] =
+
+                    await Promise.all([
+
+                        request(
+
+                            "/api/migrations/summary"
+                        ),
+
+                        request(
+
+                            "/api/migrations/history"
+                        )
+                    ]);
+
+
+                renderSummary(summary.summary);
+
+
+                renderHistory(
+
+                    history.migrations || []
+                );
+
+
+                get("migration-updated").textContent =
+
+                    "Последнее обновление: " +
+
+                    formatDate(summary.generated_at);
+
+
+                console.log(
+
+                    "Migration dashboard loaded"
+                );
+
+            } catch (error) {
+
+                message.className =
+
+                    "migration-critical";
+
+
+                message.textContent =
+
+                    "Ошибка загрузки: " +
+
+                    error.message;
+
+
+                get("migration-updated").textContent =
+
+                    "Данные могут быть устаревшими";
+
+            } finally {
+
+                loading = false;
+
+
+                button.disabled = false;
+            }
+        }
+
+
+        get("migration-refresh").addEventListener(
+
+            "click",
+
+            loadDashboard
+        );
+
+
+        setInterval(() => {
+
+            if (!document.hidden) {
+
+                loadDashboard();
+            }
+
+        }, 60000);
+
+
+        loadDashboard();
+
+
+        console.log(
+
+            "Migration monitoring initialized successfully"
+        );
+    }
+
+
+    if (document.readyState === "loading") {
+
+        document.addEventListener(
+
+            "DOMContentLoaded",
+
+            initializeMigrationDashboard
+        );
+
+    } else {
+
+        initializeMigrationDashboard();
+    }
+
+})();
+

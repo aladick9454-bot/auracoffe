@@ -92,7 +92,11 @@ const protectedRoutes = [
 
     "/api/ci/summary",
 
-    "/api/ci/runs"
+    "/api/ci/runs",
+
+    "/api/migrations/summary",
+
+    "/api/migrations/history"
 ];
 
 

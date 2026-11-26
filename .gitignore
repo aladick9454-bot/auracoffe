@@ -13,3 +13,4 @@ backup.lock
 backup-status.json
 restore-report.json
 FAILED.txt
+database/baseline.tmp.sql

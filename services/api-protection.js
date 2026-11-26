@@ -97,7 +97,9 @@ const excludedPrefixes = [
 
     "/api/protection",
 
-    "/api/ci"
+    "/api/ci",
+
+    "/api/migrations"
 ];
 
 

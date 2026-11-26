@@ -69,7 +69,11 @@ test("Required monitoring tables exist", async () => {
 
         "security_protection_events",
 
-        "monitoring_ci_runs"
+        "monitoring_ci_runs",
+
+        "schema_migrations",
+
+        "database_metadata"
     ];
 
 
@@ -265,4 +269,54 @@ test("Active IP block rejects requests", async () => {
             client.release();
         }
     }
+});
+
+test("Database migration history exists", async () => {
+
+    const result = await pool.query(`
+
+        SELECT
+
+            version,
+
+            checksum
+
+        FROM public.schema_migrations
+
+        ORDER BY version
+    `);
+
+
+    assert.ok(result.rows.length >= 2);
+
+
+    for (const row of result.rows) {
+
+        assert.match(
+
+            row.checksum,
+
+            /^[a-f0-9]{64}$/
+        );
+    }
+});
+
+
+test("Database migration summary is available", async () => {
+
+    const result = await pool.query(`
+
+        SELECT *
+
+        FROM public.database_migration_summary
+    `);
+
+
+    assert.equal(result.rows.length, 1);
+
+
+    assert.ok(
+
+        Number(result.rows[0].total_migrations) >= 2
+    );
 });

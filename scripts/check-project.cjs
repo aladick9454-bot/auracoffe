@@ -50,7 +50,27 @@ const requiredFiles = [
 
     ".github/workflows/ci.yml",
 
-    ".github/workflows/production-smoke.yml"
+    ".github/workflows/production-smoke.yml",
+    
+    "database/baseline.sql",
+
+"database/migrations/0001_migration_metadata.sql",
+
+"database/migrations/0002_database_metadata.sql",
+
+"scripts/export-baseline.ps1",
+
+"scripts/migrate.cjs",
+
+"scripts/schema-check.cjs",
+
+"services/migration-monitoring.js",
+
+"tests/migrations.test.cjs",
+
+".github/workflows/database-migrations.yml",
+
+"docs/DATABASE-MIGRATIONS.md"
 ];
 
 

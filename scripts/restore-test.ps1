@@ -368,7 +368,9 @@ try {
     "security_rate_limits",
     "security_ip_blocks",
     "security_protection_events",
-    "monitoring_ci_runs"
+    "monitoring_ci_runs",
+    "schema_migrations",
+    "database_metadata"
 )
 
 

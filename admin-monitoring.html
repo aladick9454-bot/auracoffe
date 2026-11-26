@@ -2328,6 +2328,164 @@
 
 </section>
 
+<section
+    id="migration-dashboard"
+    class="security-dashboard"
+>
+
+    <div class="security-header">
+
+        <div>
+
+            <h2>Database Migrations</h2>
+
+            <p>
+                Управление версиями базы данных
+            </p>
+
+        </div>
+
+        <button
+            type="button"
+            id="migration-refresh"
+            class="security-button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+
+    <p
+        id="migration-message"
+        role="status"
+    >
+        Загрузка данных...
+    </p>
+
+
+    <div class="security-grid">
+
+        <div class="security-card">
+
+            <span>Schema Version</span>
+
+            <strong id="migration-version">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Applied Migrations</span>
+
+            <strong id="migration-applied">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Pending Migrations</span>
+
+            <strong id="migration-pending">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Integrity</span>
+
+            <strong id="migration-integrity">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Average Execution</span>
+
+            <strong id="migration-duration">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Last Migration</span>
+
+            <strong id="migration-last">
+                —
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <h3>Migration History</h3>
+
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Версия</th>
+
+                    <th>Миграция</th>
+
+                    <th>SHA-256</th>
+
+                    <th>Длительность</th>
+
+                    <th>Дата применения</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="migration-history">
+
+                <tr>
+
+                    <td colspan="5">
+                        Загрузка...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <p
+        id="migration-updated"
+        class="security-updated"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
+
 </main>
 
 

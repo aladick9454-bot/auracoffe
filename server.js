@@ -22,6 +22,12 @@ const {
 
 } = require("./services/ci-monitoring");
 
+const {
+
+    registerMigrationMonitoringRoutes
+
+} = require("./services/migration-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -4036,6 +4042,13 @@ apiProtection.registerRoutes(
 );
 
 registerCiMonitoringRoutes(app, {
+
+    pool,
+
+    requireAdmin
+});
+
+registerMigrationMonitoringRoutes(app, {
 
     pool,
 

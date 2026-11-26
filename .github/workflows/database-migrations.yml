@@ -1,0 +1,148 @@
+name: AURA COFFEE - Database Migrations
+
+on:
+
+  workflow_dispatch:
+
+    inputs:
+
+      confirmation:
+
+        description: "Type APPLY_PRODUCTION after creating a verified backup"
+
+        required: true
+
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aura-production-migrations
+  cancel-in-progress: false
+
+jobs:
+
+  validate:
+
+    name: Validate Migration Request
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 5
+
+    steps:
+
+      - name: Verify branch and confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Production migrations require main branch"
+            exit 1
+          fi
+
+          if [[ "$CONFIRMATION" != "APPLY_PRODUCTION" ]]; then
+            echo "Invalid production confirmation"
+            exit 1
+          fi
+
+
+  testing:
+
+    name: Validate Migrations on Test Database
+
+    needs: validate
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    concurrency:
+      group: aura-test-database
+      cancel-in-progress: false
+
+    env:
+      MIGRATION_TARGET: test
+      CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate project
+        run: npm run ci
+
+      - name: Apply test migrations
+        run: npm run db:migrate
+
+      - name: Verify test migrations
+        run: npm run db:verify
+
+      - name: Run database tests
+        run: npm run test:db
+
+
+  production:
+
+    name: Apply Production Migrations
+
+    needs: testing
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    environment: production
+
+    env:
+      MIGRATION_TARGET: production
+      MIGRATION_CONFIRM: APPLY_PRODUCTION
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check production migration status
+        run: npm run db:status
+
+      - name: Apply production migrations
+        run: npm run db:migrate
+
+      - name: Verify production migrations
+        run: npm run db:verify
+
+      - name: Compare database schemas
+        env:
+          CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+        run: npm run db:schema
+
+      - name: Generate migration summary
+        if: always()
+        run: |
+          echo "## AURA COFFEE - Database Migrations" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
