@@ -7157,3 +7157,521 @@ if (
   }
 
 })();
+
+// ==========================================
+// BACKUP RELIABILITY DASHBOARD
+// ==========================================
+
+;(() => {
+    "use strict";
+
+    const API_URL =
+        "/api/monitoring/backups/admin";
+
+    const REFRESH_INTERVAL = 60000;
+    const REQUEST_TIMEOUT = 15000;
+
+    const statusNames = {
+        healthy: "Healthy",
+        warning: "Warning",
+        critical: "Critical",
+        unknown: "Unknown"
+    };
+
+    const reasonNames = {
+        "No successful backup registered":
+            "Нет зарегистрированных успешных копий",
+
+        "Backup is older than 48 hours":
+            "Последняя копия старше 48 часов",
+
+        "Latest backup attempt failed":
+            "Последняя попытка завершилась ошибкой",
+
+        "Backup is older than 26 hours":
+            "Последняя копия старше 26 часов",
+
+        "Backup system is healthy":
+            "Резервное копирование работает"
+    };
+
+    const statusClasses = [
+        "backup-healthy",
+        "backup-warning",
+        "backup-critical",
+        "backup-unknown"
+    ];
+
+    let activeController = null;
+    let requestId = 0;
+
+    function element(id) {
+        return document.getElementById(id);
+    }
+
+    function setText(id, value) {
+        const target = element(id);
+
+        if (target) {
+            target.textContent = value ?? "—";
+        }
+    }
+
+    function setColor(id, status) {
+        const target = element(id);
+
+        if (!target) {
+            return;
+        }
+
+        target.classList.remove(...statusClasses);
+
+        const safeStatus =
+            Object.hasOwn(statusNames, status)
+                ? status
+                : "unknown";
+
+        target.classList.add(
+            `backup-${safeStatus}`
+        );
+    }
+
+    function formatDate(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return "—";
+        }
+
+        return date.toLocaleString("ru-RU", {
+            timeZone: "Asia/Novosibirsk"
+        });
+    }
+
+    function formatNumber(value, suffix = "") {
+        if (
+            value === null ||
+            value === undefined ||
+            value === ""
+        ) {
+            return "—";
+        }
+
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+            return "—";
+        }
+
+        return number.toLocaleString("ru-RU", {
+            maximumFractionDigits: 2
+        }) + suffix;
+    }
+
+    function renderEmptyHistory(message) {
+        const body = element("backup-history-body");
+
+        if (!body) {
+            return;
+        }
+
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+
+        cell.colSpan = 4;
+        cell.textContent = message;
+
+        row.appendChild(cell);
+        body.replaceChildren(row);
+    }
+
+    function renderHistory(history) {
+        const body = element("backup-history-body");
+
+        if (!body) {
+            return;
+        }
+
+        if (!Array.isArray(history) || !history.length) {
+            renderEmptyHistory(
+                "История резервного копирования пуста"
+            );
+
+            return;
+        }
+
+        const fragment =
+            document.createDocumentFragment();
+
+        for (const item of history) {
+            const row = document.createElement("tr");
+
+            const idCell = document.createElement("td");
+            idCell.textContent = item.backup_id || "—";
+
+            const dateCell =
+                document.createElement("td");
+
+            dateCell.textContent =
+                formatDate(item.checked_at);
+
+            const statusCell =
+                document.createElement("td");
+
+            const badge =
+                document.createElement("span");
+
+            const success =
+                item.status === "completed";
+
+            badge.className =
+                "backup-status-badge " +
+                (
+                    success
+                        ? "backup-healthy"
+                        : "backup-critical"
+                );
+
+            badge.textContent =
+                success ? "Completed" : "Failed";
+
+            statusCell.appendChild(badge);
+
+            const durationCell =
+                document.createElement("td");
+
+            durationCell.textContent =
+                formatNumber(
+                    item.duration_seconds,
+                    " сек."
+                );
+
+            row.append(
+                idCell,
+                dateCell,
+                statusCell,
+                durationCell
+            );
+
+            fragment.appendChild(row);
+        }
+
+        body.replaceChildren(fragment);
+    }
+
+    function renderDashboard(data) {
+        const health = data.health || {};
+        const restore = data.restore;
+
+        const status =
+            health.overall_status || "unknown";
+
+        setText(
+            "backup-overall-status",
+            statusNames[status] || "Unknown"
+        );
+
+        setColor("backup-overall-status", status);
+
+        setText(
+            "backup-status-reason",
+            reasonNames[health.status_reason] ||
+            "Нет данных"
+        );
+
+        setText(
+            "backup-last-success",
+            formatDate(health.last_success_at)
+        );
+
+        setText(
+            "backup-age-hours",
+            formatNumber(
+                health.backup_age_hours,
+                " ч."
+            )
+        );
+
+        const age =
+            health.backup_age_hours === null ||
+            health.backup_age_hours === undefined
+                ? null
+                : Number(health.backup_age_hours);
+
+        setColor(
+            "backup-age-hours",
+            age === null
+                ? "unknown"
+                : age >= 48
+                    ? "critical"
+                    : age >= 26
+                        ? "warning"
+                        : "healthy"
+        );
+
+        setText(
+            "backup-success-rate",
+            formatNumber(health.success_rate, "%")
+        );
+
+        setText(
+            "backup-success-sample",
+            `${health.successful_runs ?? 0} из ` +
+            `${health.total_runs ?? 0} запусков`
+        );
+
+        setText(
+            "backup-failed-runs",
+            health.failed_runs ?? 0
+        );
+
+        setColor(
+            "backup-failed-runs",
+            Number(health.failed_runs) > 0
+                ? "warning"
+                : "healthy"
+        );
+
+        setText(
+            "backup-restore-status",
+            restore
+                ? restore.status.toUpperCase()
+                : "Нет данных"
+        );
+
+        setColor(
+            "backup-restore-status",
+            data.restore_health || "unknown"
+        );
+
+        setText(
+            "backup-restore-date",
+            restore
+                ? formatDate(restore.tested_at)
+                : "Тест не зарегистрирован"
+        );
+
+        setText(
+            "backup-restore-duration",
+            formatNumber(
+                restore?.duration_seconds,
+                " сек."
+            )
+        );
+
+        setText(
+            "backup-restore-tables",
+            restore
+                ? `Проверено таблиц: ${
+                    restore.checked_tables_count
+                }`
+                : "Нет данных"
+        );
+
+        renderHistory(data.history);
+
+        setText(
+            "backup-dashboard-message",
+            "Данные резервного копирования актуальны"
+        );
+
+        setColor(
+            "backup-dashboard-message",
+            "healthy"
+        );
+
+        setText(
+            "backup-updated-at",
+            "Обновлено: " +
+            formatDate(data.generated_at)
+        );
+    }
+
+    function renderError() {
+        const ids = [
+            "backup-last-success",
+            "backup-age-hours",
+            "backup-success-rate",
+            "backup-success-sample",
+            "backup-failed-runs",
+            "backup-restore-status",
+            "backup-restore-date",
+            "backup-restore-duration",
+            "backup-restore-tables"
+        ];
+
+        for (const id of ids) {
+            setText(id, "—");
+            setColor(id, "unknown");
+        }
+
+        setText(
+            "backup-overall-status",
+            "Unknown"
+        );
+
+        setColor(
+            "backup-overall-status",
+            "unknown"
+        );
+
+        setText(
+            "backup-status-reason",
+            "Не удалось получить данные"
+        );
+
+        setText(
+            "backup-dashboard-message",
+            "Сервис мониторинга недоступен"
+        );
+
+        setColor(
+            "backup-dashboard-message",
+            "critical"
+        );
+
+        setText(
+            "backup-updated-at",
+            "Последнее обновление не удалось"
+        );
+
+        renderEmptyHistory(
+            "Не удалось загрузить историю"
+        );
+    }
+
+    async function loadBackupDashboard() {
+        const currentRequest = ++requestId;
+
+        if (activeController) {
+            activeController.abort();
+        }
+
+        const controller = new AbortController();
+
+        activeController = controller;
+
+        const button =
+            element("backup-refresh-btn");
+
+        if (button) {
+            button.disabled = true;
+        }
+
+        const timeout = setTimeout(
+            () => controller.abort(),
+            REQUEST_TIMEOUT
+        );
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "GET",
+                credentials: "same-origin",
+                cache: "no-store",
+                signal: controller.signal
+            });
+
+            if (currentRequest !== requestId) {
+                return;
+            }
+
+            if (response.status === 401) {
+                window.location.href =
+                    "/admin/login";
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+            }
+
+            const data = await response.json();
+
+            if (currentRequest !== requestId) {
+                return;
+            }
+
+            if (!data.ok) {
+                throw new Error(
+                    "Invalid backup response"
+                );
+            }
+
+            renderDashboard(data);
+
+            console.log(
+                "Backup reliability loaded:",
+                data
+            );
+
+        } catch (error) {
+            if (currentRequest !== requestId) {
+                return;
+            }
+
+            renderError();
+
+            console.error(
+                "Backup dashboard error:",
+                error.message
+            );
+
+        } finally {
+            clearTimeout(timeout);
+
+            if (currentRequest === requestId) {
+                activeController = null;
+
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+    }
+
+    function initializeBackupDashboard() {
+        if (
+            !element(
+                "backup-reliability-dashboard"
+            )
+        ) {
+            return;
+        }
+
+        element("backup-refresh-btn")
+            ?.addEventListener(
+                "click",
+                loadBackupDashboard
+            );
+
+        loadBackupDashboard();
+
+        setInterval(() => {
+            if (!document.hidden) {
+                loadBackupDashboard();
+            }
+        }, REFRESH_INTERVAL);
+
+        console.log(
+            "Backup reliability initialized successfully"
+        );
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener(
+            "DOMContentLoaded",
+            initializeBackupDashboard,
+            { once: true }
+        );
+    } else {
+        initializeBackupDashboard();
+    }
+
+})();

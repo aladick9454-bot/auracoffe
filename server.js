@@ -1,5 +1,9 @@
 'use strict';
 
+const {
+    registerBackupMonitoringRoutes
+} = require("./services/backup-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -3962,6 +3966,14 @@ app.post(
 
 );
 
+// ==========================================
+// BACKUP MONITORING MODULE
+// ==========================================
+
+registerBackupMonitoringRoutes(app, {
+    pool,
+    requireAdmin
+});
 
 // Запуск сервера
 app.listen(port, () => {

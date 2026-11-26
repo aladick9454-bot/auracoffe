@@ -1198,6 +1198,136 @@
 
 </section>
 
+<!-- ======================================
+     BACKUP RELIABILITY DASHBOARD
+======================================= -->
+
+<section
+    id="backup-reliability-dashboard"
+    class="backup-dashboard"
+>
+
+    <div class="backup-dashboard-header">
+
+        <div>
+            <h2>Backup Reliability</h2>
+
+            <p>
+                Резервное копирование и аварийное
+                восстановление
+            </p>
+        </div>
+
+        <button
+            id="backup-refresh-btn"
+            class="backup-refresh-btn"
+            type="button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+    <div
+        id="backup-dashboard-message"
+        class="backup-message"
+        role="status"
+    >
+        Загрузка данных...
+    </div>
+
+    <div class="backup-grid">
+
+        <article class="backup-card">
+            <span>Состояние системы</span>
+            <strong id="backup-overall-status">—</strong>
+            <small id="backup-status-reason">—</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Последняя успешная копия</span>
+            <strong id="backup-last-success">—</strong>
+            <small>PostgreSQL + n8n</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Возраст резервной копии</span>
+            <strong id="backup-age-hours">—</strong>
+            <small>Предупреждение: 26 часов</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Успешность за 30 дней</span>
+            <strong id="backup-success-rate">—</strong>
+            <small id="backup-success-sample">—</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Неудачные копирования</span>
+            <strong id="backup-failed-runs">—</strong>
+            <small>Последние 30 дней</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Целевой RPO</span>
+            <strong>24 ч.</strong>
+            <small>Recovery Point Objective</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Тест восстановления</span>
+            <strong id="backup-restore-status">—</strong>
+            <small id="backup-restore-date">—</small>
+        </article>
+
+        <article class="backup-card">
+            <span>Время восстановления</span>
+            <strong id="backup-restore-duration">—</strong>
+            <small id="backup-restore-tables">—</small>
+        </article>
+
+    </div>
+
+    <div class="backup-history-panel">
+
+        <h3>История резервного копирования</h3>
+
+        <div class="backup-table-wrapper">
+
+            <table class="backup-table">
+
+                <thead>
+                    <tr>
+                        <th>Backup ID</th>
+                        <th>Дата</th>
+                        <th>Статус</th>
+                        <th>Длительность</th>
+                    </tr>
+                </thead>
+
+                <tbody id="backup-history-body">
+                    <tr>
+                        <td colspan="4">
+                            Загрузка данных...
+                        </td>
+                    </tr>
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <p
+        id="backup-updated-at"
+        class="backup-updated-at"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
+
 
 <!-- ========================================
      AUTOMATED RECOVERY DASHBOARD
