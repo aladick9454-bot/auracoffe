@@ -2257,3 +2257,230 @@ footer {
         padding: 12px;
     }
 }
+
+/* =====================================
+   SECURITY MONITORING DASHBOARD
+===================================== */
+
+.security-dashboard {
+    margin: 32px 0;
+    padding: 24px;
+    background: #111827;
+    color: #e5e7eb;
+    border: 1px solid #334155;
+    border-radius: 16px;
+}
+
+.security-dashboard h2 {
+    margin: 0 0 8px;
+    font-size: 25px;
+    color: #f8fafc;
+}
+
+.security-dashboard h3 {
+    margin: 28px 0 16px;
+    font-size: 18px;
+    color: #f1f5f9;
+}
+
+.security-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.security-header p {
+    margin: 0;
+    color: #94a3b8;
+}
+
+.security-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.security-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 90px;
+    padding: 18px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+}
+
+.security-card span {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+.security-card strong {
+    font-size: 30px;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.security-card .security-warning {
+    color: #fbbf24;
+}
+
+.security-card .security-critical {
+    color: #f87171;
+}
+
+.security-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.security-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    color: #cbd5e1;
+}
+
+.security-controls select {
+    min-width: 180px;
+    padding: 10px 12px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #1e293b;
+    color: #f8fafc;
+}
+
+.security-button {
+    padding: 10px 16px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #1e293b;
+    color: #f8fafc;
+    cursor: pointer;
+}
+
+.security-button:hover:not(:disabled) {
+    background: #334155;
+}
+
+.security-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.security-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #334155;
+    border-radius: 10px;
+}
+
+.security-table {
+    width: 100%;
+    min-width: 850px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.security-table th {
+    padding: 13px;
+    text-align: left;
+    color: #94a3b8;
+    background: #1e293b;
+}
+
+.security-table td {
+    padding: 13px;
+    border-top: 1px solid #334155;
+    color: #e2e8f0;
+    overflow-wrap: anywhere;
+}
+
+.security-table tbody tr:hover {
+    background: #1e293b;
+}
+
+.security-level {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.security-level-info {
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.security-level-warning {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.15);
+}
+
+.security-level-critical {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.security-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+#security-message {
+    margin: 15px 0;
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+#security-message.security-error {
+    color: #f87171;
+}
+
+.security-updated {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+@media (max-width: 600px) {
+
+    .security-dashboard {
+        padding: 14px;
+    }
+
+    .security-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .security-card {
+        padding: 12px;
+    }
+
+    .security-card strong {
+        font-size: 24px;
+    }
+
+    .security-controls label,
+    .security-controls select {
+        width: 100%;
+    }
+
+    .security-pagination {
+        gap: 8px;
+        font-size: 12px;
+    }
+}

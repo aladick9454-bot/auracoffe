@@ -8,6 +8,10 @@ const {
     registerCloudMonitoringRoutes
 } = require("./services/cloud-monitoring");
 
+const {
+    createSecurityMonitoring
+} = require("./services/security-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -22,6 +26,11 @@ const pool = new Pool({
   connectionTimeoutMillis: 15000,
   idleTimeoutMillis: 30000
 });
+
+const securityMonitoring =
+    createSecurityMonitoring(pool);
+
+    app.use(securityMonitoring.middleware);
 
 pool.on('error', (error) => {
   console.error('PostgreSQL pool error:', error.code);
@@ -2446,6 +2455,15 @@ app.post('/admin/login', (req, res) => {
     )
   );
 
+  // SECURITY MONITORING: успешная авторизация
+  securityMonitoring.recordLogin(req, true)
+    .catch(error => {
+      console.error(
+        'Security login event error:',
+        error.code || error.name
+      );
+    });
+
   return res.redirect(303, '/admin/monitoring');
 });
 
@@ -3977,6 +3995,38 @@ app.post(
 registerBackupMonitoringRoutes(app, {
     pool,
     requireAdmin
+});
+
+// ==========================================
+// INDEPENDENT CLOUD MONITORING
+// ==========================================
+
+registerCloudMonitoringRoutes(app, {
+    pool,
+    requireAdmin
+});
+
+// ==========================================
+// SECURITY MONITORING
+// ==========================================
+
+securityMonitoring.registerRoutes(
+    app,
+    requireAdmin
+);
+
+console.log(
+    "Security monitoring routes registered"
+);
+
+// ==========================================
+// SERVER START
+// ==========================================
+
+app.listen(port, () => {
+    console.log(
+        `AURA COFFEE: http://localhost:${port}`
+    );
 });
 
 // ==========================================

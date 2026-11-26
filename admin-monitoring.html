@@ -1644,8 +1644,245 @@
 
 </section>
 
+<section
+    id="security-dashboard"
+    class="security-dashboard"
+>
 
-  </main>
+    <div class="security-header">
+
+        <div>
+            <h2>Security Monitoring</h2>
+
+            <p>
+                Мониторинг безопасности AURA COFFEE
+            </p>
+        </div>
+
+        <button
+            type="button"
+            id="security-refresh"
+            class="security-button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+    <p id="security-message">
+        Загрузка данных...
+    </p>
+
+    <h3>Статистика за 24 часа</h3>
+
+    <div class="security-grid">
+
+        <div class="security-card">
+            <span>Всего событий</span>
+            <strong id="security-total">—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Предупреждения</span>
+            <strong
+                id="security-warnings"
+                class="security-warning"
+            >—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Критические события</span>
+            <strong
+                id="security-critical"
+                class="security-critical"
+            >—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Ошибки авторизации</span>
+            <strong id="security-logins">—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Несанкционированный доступ</span>
+            <strong id="security-unauthorized">—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Действия администратора</span>
+            <strong id="security-actions">—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Отправлено предупреждений</span>
+            <strong id="security-alerts-sent">—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Ожидают отправки</span>
+            <strong id="security-alerts-pending">—</strong>
+        </div>
+
+        <div class="security-card">
+            <span>Не доставлены</span>
+            <strong
+                id="security-alerts-dead"
+                class="security-critical"
+            >—</strong>
+        </div>
+
+    </div>
+
+    <h3>Журнал событий безопасности</h3>
+
+    <div class="security-controls">
+
+        <label>
+            Период
+
+            <select id="security-period">
+
+                <option value="24h">
+                    Последние 24 часа
+                </option>
+
+                <option value="7d">
+                    Последние 7 дней
+                </option>
+
+                <option value="30d">
+                    Последние 30 дней
+                </option>
+
+            </select>
+        </label>
+
+        <label>
+            Критичность
+
+            <select id="security-severity">
+
+                <option value="all">
+                    Все события
+                </option>
+
+                <option value="info">
+                    Информация
+                </option>
+
+                <option value="warning">
+                    Предупреждения
+                </option>
+
+                <option value="critical">
+                    Критические
+                </option>
+
+            </select>
+        </label>
+
+    </div>
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Событие</th>
+                    <th>Критичность</th>
+                    <th>IP</th>
+                    <th>Метод</th>
+                    <th>Маршрут</th>
+                    <th>HTTP</th>
+                    <th>Время</th>
+                </tr>
+            </thead>
+
+            <tbody id="security-events-body">
+
+                <tr>
+                    <td colspan="8">
+                        Загрузка...
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <div class="security-pagination">
+
+        <button
+            id="security-prev"
+            type="button"
+            class="security-button"
+            disabled
+        >
+            Назад
+        </button>
+
+        <span id="security-page-info">
+            Страница 1
+        </span>
+
+        <button
+            id="security-next"
+            type="button"
+            class="security-button"
+            disabled
+        >
+            Далее
+        </button>
+
+    </div>
+
+    <h3>Последние предупреждения</h3>
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Тип</th>
+                    <th>IP</th>
+                    <th>Событий</th>
+                    <th>Критичность</th>
+                    <th>Доставка</th>
+                    <th>Попытки</th>
+                    <th>Время</th>
+                </tr>
+            </thead>
+
+            <tbody id="security-alerts-body">
+
+                <tr>
+                    <td colspan="8">
+                        Загрузка...
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <p
+        id="security-updated"
+        class="security-updated"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
+
+</main>
 
 
   <!-- CHART.JS -->

@@ -8184,3 +8184,715 @@ if (
     }
 
 })();
+
+/* =====================================
+   SECURITY MONITORING DASHBOARD
+===================================== */
+
+;(() => {
+
+    "use strict";
+
+    function initializeSecurityDashboard() {
+
+        const dashboard = document.getElementById(
+            "security-dashboard"
+        );
+
+        if (!dashboard) {
+            return;
+        }
+
+        const get = id =>
+            document.getElementById(id);
+
+        const PAGE_SIZE = 25;
+
+        const REFRESH_INTERVAL = 60000;
+
+        let currentPage = 1;
+
+        let totalEvents = 0;
+
+        let activeController = null;
+
+        let requestId = 0;
+
+
+        const eventNames = {
+
+            login_success:
+                "Успешный вход",
+
+            login_failed:
+                "Ошибка авторизации",
+
+            unauthorized_access:
+                "Несанкционированный доступ",
+
+            admin_action:
+                "Действие администратора",
+
+            protected_api_write:
+                "Запись через защищённый API",
+
+            rate_limit_exceeded:
+                "Превышен лимит запросов",
+
+            server_error:
+                "Ошибка сервера"
+        };
+
+
+        const alertNames = {
+
+            repeated_login_failures:
+                "Повторные ошибки входа",
+
+            repeated_unauthorized_access:
+                "Повторный отказ в доступе"
+        };
+
+
+        const severityNames = {
+
+            info: "Info",
+
+            warning: "Warning",
+
+            critical: "Critical"
+        };
+
+
+        const deliveryNames = {
+
+            pending: "Ожидает",
+
+            processing: "Отправляется",
+
+            sent: "Отправлено",
+
+            failed: "Повторная попытка",
+
+            dead: "Не доставлено"
+        };
+
+
+        const metricFields = {
+
+            "security-total":
+                "total_events",
+
+            "security-warnings":
+                "warning_events",
+
+            "security-critical":
+                "critical_events",
+
+            "security-logins":
+                "failed_logins",
+
+            "security-unauthorized":
+                "unauthorized_requests",
+
+            "security-actions":
+                "admin_actions",
+
+            "security-alerts-sent":
+                "sent_alerts",
+
+            "security-alerts-pending":
+                "pending_alerts",
+
+            "security-alerts-dead":
+                "dead_alerts"
+        };
+
+
+        function formatDate(value) {
+
+            if (!value) {
+                return "—";
+            }
+
+            const date = new Date(value);
+
+            if (Number.isNaN(date.getTime())) {
+                return "—";
+            }
+
+            return date.toLocaleString(
+                "ru-RU",
+                {
+                    timeZone: "Asia/Novosibirsk"
+                }
+            );
+        }
+
+
+        function setText(id, value) {
+
+            const element = get(id);
+
+            if (element) {
+
+                element.textContent =
+                    value ?? "—";
+            }
+        }
+
+
+        function setMessage(message, isError = false) {
+
+            const element = get(
+                "security-message"
+            );
+
+            if (!element) {
+                return;
+            }
+
+            element.textContent = message;
+
+            element.classList.toggle(
+                "security-error",
+                isError
+            );
+        }
+
+
+        async function fetchJson(url, signal) {
+
+            const response = await fetch(
+                url,
+                {
+                    credentials: "same-origin",
+                    cache: "no-store",
+                    signal
+                }
+            );
+
+            if (response.status === 401) {
+
+                window.location.href =
+                    "/admin/login";
+
+                throw new Error(
+                    "Authentication required"
+                );
+            }
+
+            if (!response.ok) {
+
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+            }
+
+            const data = await response.json();
+
+            if (!data.ok) {
+
+                throw new Error(
+                    "Invalid API response"
+                );
+            }
+
+            return data;
+        }
+
+
+        function appendCell(row, value) {
+
+            const cell =
+                document.createElement("td");
+
+            cell.textContent =
+                value ?? "—";
+
+            row.appendChild(cell);
+
+            return cell;
+        }
+
+
+        function appendSeverity(row, severity) {
+
+            const cell =
+                document.createElement("td");
+
+            const badge =
+                document.createElement("span");
+
+            const safeSeverity = [
+                "info",
+                "warning",
+                "critical"
+            ].includes(severity)
+                ? severity
+                : "info";
+
+            badge.className =
+                "security-level " +
+                `security-level-${safeSeverity}`;
+
+            badge.textContent =
+                severityNames[safeSeverity];
+
+            cell.appendChild(badge);
+
+            row.appendChild(cell);
+        }
+
+
+        function renderEmpty(body, message) {
+
+            body.replaceChildren();
+
+            const row =
+                document.createElement("tr");
+
+            const cell =
+                document.createElement("td");
+
+            cell.colSpan = 8;
+
+            cell.textContent = message;
+
+            row.appendChild(cell);
+
+            body.appendChild(row);
+        }
+
+
+        function renderSummary(summary) {
+
+            Object.entries(metricFields)
+                .forEach(([id, key]) => {
+
+                    const value =
+                        Number(summary[key] ?? 0);
+
+                    setText(
+                        id,
+                        Number.isFinite(value)
+                            ? value.toLocaleString("ru-RU")
+                            : "—"
+                    );
+                });
+        }
+
+
+        function renderEvents(events) {
+
+            const body = get(
+                "security-events-body"
+            );
+
+            body.replaceChildren();
+
+            if (!events.length) {
+
+                renderEmpty(
+                    body,
+                    "События не найдены"
+                );
+
+                return;
+            }
+
+            const fragment =
+                document.createDocumentFragment();
+
+            for (const event of events) {
+
+                const row =
+                    document.createElement("tr");
+
+                appendCell(row, event.id);
+
+                appendCell(
+                    row,
+                    eventNames[event.event_type] ||
+                    event.event_type
+                );
+
+                appendSeverity(
+                    row,
+                    event.severity
+                );
+
+                appendCell(
+                    row,
+                    event.ip_address
+                );
+
+                appendCell(
+                    row,
+                    event.request_method
+                );
+
+                appendCell(
+                    row,
+                    event.request_path
+                );
+
+                appendCell(
+                    row,
+                    event.status_code
+                );
+
+                appendCell(
+                    row,
+                    formatDate(event.created_at)
+                );
+
+                fragment.appendChild(row);
+            }
+
+            body.appendChild(fragment);
+        }
+
+
+        function renderAlerts(alerts) {
+
+            const body = get(
+                "security-alerts-body"
+            );
+
+            body.replaceChildren();
+
+            if (!alerts.length) {
+
+                renderEmpty(
+                    body,
+                    "Предупреждения отсутствуют"
+                );
+
+                return;
+            }
+
+            const fragment =
+                document.createDocumentFragment();
+
+            for (const alert of alerts) {
+
+                const row =
+                    document.createElement("tr");
+
+                appendCell(row, alert.id);
+
+                appendCell(
+                    row,
+                    alertNames[alert.alert_type] ||
+                    alert.alert_type
+                );
+
+                appendCell(
+                    row,
+                    alert.ip_address
+                );
+
+                appendCell(
+                    row,
+                    alert.event_count
+                );
+
+                appendSeverity(
+                    row,
+                    alert.severity
+                );
+
+                appendCell(
+                    row,
+                    deliveryNames[
+                        alert.notification_status
+                    ] ||
+                    alert.notification_status
+                );
+
+                appendCell(
+                    row,
+                    alert.attempt_count
+                );
+
+                appendCell(
+                    row,
+                    formatDate(alert.created_at)
+                );
+
+                fragment.appendChild(row);
+            }
+
+            body.appendChild(fragment);
+        }
+
+
+        function updatePagination() {
+
+            const totalPages = Math.max(
+                1,
+                Math.ceil(
+                    totalEvents / PAGE_SIZE
+                )
+            );
+
+            setText(
+                "security-page-info",
+                `Страница ${currentPage} из ${totalPages}`
+            );
+
+            get("security-prev").disabled =
+                currentPage <= 1;
+
+            get("security-next").disabled =
+                currentPage >= totalPages;
+        }
+
+
+        async function loadSecurityDashboard() {
+
+            if (activeController) {
+
+                activeController.abort();
+            }
+
+            const controller =
+                new AbortController();
+
+            activeController = controller;
+
+            const currentRequest = ++requestId;
+
+            const timeout = setTimeout(
+                () => controller.abort(),
+                15000
+            );
+
+            get("security-refresh").disabled =
+                true;
+
+            setMessage("Обновление данных...");
+
+            try {
+
+                const period =
+                    get("security-period").value;
+
+                const severity =
+                    get("security-severity").value;
+
+                const params = new URLSearchParams({
+
+                    period,
+
+                    severity,
+
+                    limit: String(PAGE_SIZE),
+
+                    offset: String(
+                        (currentPage - 1) *
+                        PAGE_SIZE
+                    )
+                });
+
+                const [
+                    summaryData,
+                    eventsData,
+                    alertsData
+                ] = await Promise.all([
+
+                    fetchJson(
+                        "/api/security/summary",
+                        controller.signal
+                    ),
+
+                    fetchJson(
+                        `/api/security/events?${params}`,
+                        controller.signal
+                    ),
+
+                    fetchJson(
+                        "/api/security/alerts",
+                        controller.signal
+                    )
+                ]);
+
+                if (currentRequest !== requestId) {
+                    return;
+                }
+
+                totalEvents =
+                    Number(eventsData.total) || 0;
+
+                const maxPage = Math.max(
+                    1,
+                    Math.ceil(
+                        totalEvents / PAGE_SIZE
+                    )
+                );
+
+                if (currentPage > maxPage) {
+
+                    currentPage = maxPage;
+
+                    return loadSecurityDashboard();
+                }
+
+                renderSummary(
+                    summaryData.summary
+                );
+
+                renderEvents(
+                    eventsData.events || []
+                );
+
+                renderAlerts(
+                    alertsData.alerts || []
+                );
+
+                updatePagination();
+
+                setMessage(
+                    "Данные безопасности актуальны"
+                );
+
+                setText(
+                    "security-updated",
+
+                    "Последнее обновление: " +
+                    formatDate(
+                        summaryData.generated_at
+                    )
+                );
+
+                console.log(
+                    "Security monitoring loaded:",
+                    summaryData
+                );
+
+            } catch (error) {
+
+                if (currentRequest !== requestId) {
+                    return;
+                }
+
+                controller.abort();
+
+                setMessage(
+                    "Не удалось обновить данные. " +
+                    "Отображаемые данные могут быть устаревшими.",
+                    true
+                );
+
+                setText(
+                    "security-updated",
+                    "Ошибка обновления"
+                );
+
+                console.error(
+                    "Security monitoring error:",
+                    error
+                );
+
+            } finally {
+
+                clearTimeout(timeout);
+
+                if (currentRequest === requestId) {
+
+                    activeController = null;
+
+                    get(
+                        "security-refresh"
+                    ).disabled = false;
+                }
+            }
+        }
+
+
+        get("security-refresh")
+            .addEventListener(
+                "click",
+                loadSecurityDashboard
+            );
+
+
+        [
+            "security-period",
+            "security-severity"
+        ].forEach(id => {
+
+            get(id).addEventListener(
+                "change",
+                () => {
+
+                    currentPage = 1;
+
+                    loadSecurityDashboard();
+                }
+            );
+        });
+
+
+        get("security-prev")
+            .addEventListener("click", () => {
+
+                if (currentPage > 1) {
+
+                    currentPage--;
+
+                    loadSecurityDashboard();
+                }
+            });
+
+
+        get("security-next")
+            .addEventListener("click", () => {
+
+                if (
+                    currentPage * PAGE_SIZE <
+                    totalEvents
+                ) {
+
+                    currentPage++;
+
+                    loadSecurityDashboard();
+                }
+            });
+
+
+        setInterval(() => {
+
+            if (
+                !document.hidden &&
+                !activeController
+            ) {
+
+                loadSecurityDashboard();
+            }
+
+        }, REFRESH_INTERVAL);
+
+
+        loadSecurityDashboard();
+
+        console.log(
+            "Security monitoring initialized successfully"
+        );
+    }
+
+
+    if (document.readyState === "loading") {
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            initializeSecurityDashboard
+        );
+
+    } else {
+
+        initializeSecurityDashboard();
+    }
+
+})();
