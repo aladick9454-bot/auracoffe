@@ -3,3 +3,13 @@ node_modules/
 .env.*
 !.env.example
 .DS_Store
+# Backup secrets and archives
+backup.env
+backup_*/
+*.dump
+*.backup
+backup-history.jsonl
+backup.lock
+backup-status.json
+restore-report.json
+FAILED.txt
