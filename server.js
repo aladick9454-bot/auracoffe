@@ -4,6 +4,10 @@ const {
     registerBackupMonitoringRoutes
 } = require("./services/backup-monitoring");
 
+const {
+    registerCloudMonitoringRoutes
+} = require("./services/cloud-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -3971,6 +3975,15 @@ app.post(
 // ==========================================
 
 registerBackupMonitoringRoutes(app, {
+    pool,
+    requireAdmin
+});
+
+// ==========================================
+// INDEPENDENT CLOUD MONITORING
+// ==========================================
+
+registerCloudMonitoringRoutes(app, {
     pool,
     requireAdmin
 });

@@ -7675,3 +7675,512 @@ if (
     }
 
 })();
+
+// ==========================================
+// INDEPENDENT CLOUD MONITORING DASHBOARD
+// ==========================================
+
+;(() => {
+    "use strict";
+
+    const API_URL =
+        "/api/monitoring/cloud/admin";
+
+    const REFRESH_INTERVAL = 60000;
+
+    const TIMEOUT_MS = 20000;
+
+    const componentNames = {
+        local_n8n: "Локальный n8n",
+
+        website: "Website",
+
+        backend: "Backend",
+
+        database: "PostgreSQL",
+
+        central_monitoring:
+            "Central Monitoring",
+
+        backup_system:
+            "Backup System",
+
+        cloud_watchdog:
+            "Cloud Watchdog"
+    };
+
+    const statusNames = {
+        healthy: "Healthy",
+
+        warning: "Warning",
+
+        critical: "Critical",
+
+        unknown: "Unknown"
+    };
+
+    const statusClasses = [
+        "cloud-healthy",
+        "cloud-warning",
+        "cloud-critical",
+        "cloud-unknown"
+    ];
+
+    let activeController = null;
+
+    let requestId = 0;
+
+    function element(id) {
+        return document.getElementById(id);
+    }
+
+    function setText(id, value) {
+        const target = element(id);
+
+        if (target) {
+            target.textContent = value ?? "—";
+        }
+    }
+
+    function safeStatus(status) {
+        return Object.hasOwn(
+            statusNames,
+            status
+        ) ? status : "unknown";
+    }
+
+    function setStatusColor(target, status) {
+        if (!target) {
+            return;
+        }
+
+        target.classList.remove(
+            ...statusClasses
+        );
+
+        target.classList.add(
+            `cloud-${safeStatus(status)}`
+        );
+    }
+
+    function formatDate(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return "—";
+        }
+
+        return date.toLocaleString("ru-RU", {
+            timeZone: "Asia/Novosibirsk"
+        });
+    }
+
+    function renderComponents(components) {
+        const grid =
+            element("cloud-components-grid");
+
+        if (!grid) {
+            return;
+        }
+
+        const fragment =
+            document.createDocumentFragment();
+
+        for (
+            const [key, name]
+            of Object.entries(componentNames)
+        ) {
+            const item = components?.[key] || {
+                status: "unknown",
+                details: "Нет данных"
+            };
+
+            const card =
+                document.createElement("article");
+
+            card.className = "cloud-card";
+
+            const title =
+                document.createElement("span");
+
+            title.textContent = name;
+
+            const status =
+                document.createElement("strong");
+
+            status.textContent =
+                statusNames[
+                    safeStatus(item.status)
+                ];
+
+            setStatusColor(
+                status,
+                item.status
+            );
+
+            const details =
+                document.createElement("small");
+
+            details.textContent =
+                item.details || "Нет данных";
+
+            card.append(
+                title,
+                status,
+                details
+            );
+
+            fragment.appendChild(card);
+        }
+
+        grid.replaceChildren(fragment);
+    }
+
+    function renderEmptyHistory(message) {
+        const body =
+            element("cloud-history-body");
+
+        if (!body) {
+            return;
+        }
+
+        const row =
+            document.createElement("tr");
+
+        const cell =
+            document.createElement("td");
+
+        cell.colSpan = 4;
+
+        cell.textContent = message;
+
+        row.appendChild(cell);
+
+        body.replaceChildren(row);
+    }
+
+    function renderHistory(history) {
+        const body =
+            element("cloud-history-body");
+
+        if (!body) {
+            return;
+        }
+
+        if (
+            !Array.isArray(history) ||
+            !history.length
+        ) {
+            renderEmptyHistory(
+                "Облачные проверки ещё не зарегистрированы"
+            );
+
+            return;
+        }
+
+        const fragment =
+            document.createDocumentFragment();
+
+        for (const item of history) {
+            const row =
+                document.createElement("tr");
+
+            const runCell =
+                document.createElement("td");
+
+            runCell.textContent =
+                item.run_id || "—";
+
+            const dateCell =
+                document.createElement("td");
+
+            dateCell.textContent =
+                formatDate(item.checked_at);
+
+            const statusCell =
+                document.createElement("td");
+
+            const badge =
+                document.createElement("span");
+
+            badge.className =
+                "backup-status-badge";
+
+            badge.textContent =
+                statusNames[
+                    safeStatus(item.overall_status)
+                ];
+
+            setStatusColor(
+                badge,
+                item.overall_status
+            );
+
+            statusCell.appendChild(badge);
+
+            const problemsCell =
+                document.createElement("td");
+
+            problemsCell.textContent =
+                item.problems_count ?? "—";
+
+            row.append(
+                runCell,
+                dateCell,
+                statusCell,
+                problemsCell
+            );
+
+            fragment.appendChild(row);
+        }
+
+        body.replaceChildren(fragment);
+    }
+
+    function renderDashboard(data) {
+        const status =
+            safeStatus(data.overall_status);
+
+        setText(
+            "cloud-overall-status",
+            statusNames[status]
+        );
+
+        setStatusColor(
+            element("cloud-overall-status"),
+            status
+        );
+
+        setText(
+            "cloud-problems-count",
+            data.problems_count ?? "—"
+        );
+
+        setStatusColor(
+            element("cloud-problems-count"),
+            status
+        );
+
+        renderComponents(
+            data.components
+        );
+
+        renderHistory(
+            data.history
+        );
+
+        const message =
+            status === "healthy"
+                ? "Все контролируемые компоненты работают"
+                : "Обнаружены проблемы или отсутствуют данные";
+
+        setText(
+            "cloud-dashboard-message",
+            message
+        );
+
+        setStatusColor(
+            element("cloud-dashboard-message"),
+            status
+        );
+
+        setText(
+            "cloud-updated-at",
+
+            "Панель обновлена: " +
+            formatDate(data.generated_at) +
+
+            " | Последняя облачная проверка: " +
+            formatDate(data.last_cloud_check)
+        );
+    }
+
+    function renderError() {
+        setText(
+            "cloud-overall-status",
+            "Unknown"
+        );
+
+        setStatusColor(
+            element("cloud-overall-status"),
+            "unknown"
+        );
+
+        setText(
+            "cloud-problems-count",
+            "—"
+        );
+
+        setStatusColor(
+            element("cloud-problems-count"),
+            "unknown"
+        );
+
+        renderComponents({});
+
+        renderEmptyHistory(
+            "Не удалось загрузить историю"
+        );
+
+        setText(
+            "cloud-dashboard-message",
+            "Сервис облачного мониторинга недоступен"
+        );
+
+        setStatusColor(
+            element("cloud-dashboard-message"),
+            "critical"
+        );
+
+        setText(
+            "cloud-updated-at",
+            "Последнее обновление не удалось"
+        );
+    }
+
+    async function loadCloudDashboard() {
+        const currentRequest = ++requestId;
+
+        activeController?.abort();
+
+        const controller =
+            new AbortController();
+
+        activeController = controller;
+
+        const button =
+            element("cloud-refresh-btn");
+
+        if (button) {
+            button.disabled = true;
+        }
+
+        const timeout = setTimeout(
+            () => controller.abort(),
+            TIMEOUT_MS
+        );
+
+        try {
+            const response = await fetch(
+                API_URL,
+                {
+                    method: "GET",
+
+                    credentials: "same-origin",
+
+                    cache: "no-store",
+
+                    signal: controller.signal
+                }
+            );
+
+            if (currentRequest !== requestId) {
+                return;
+            }
+
+            if (response.status === 401) {
+                window.location.href =
+                    "/admin/login";
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+            }
+
+            const data =
+                await response.json();
+
+            if (currentRequest !== requestId) {
+                return;
+            }
+
+            if (!data.ok) {
+                throw new Error(
+                    "Invalid cloud response"
+                );
+            }
+
+            renderDashboard(data);
+
+            console.log(
+                "Cloud monitoring loaded:",
+                data
+            );
+
+        } catch (error) {
+            if (currentRequest !== requestId) {
+                return;
+            }
+
+            renderError();
+
+            console.error(
+                "Cloud monitoring error:",
+                error.message
+            );
+
+        } finally {
+            clearTimeout(timeout);
+
+            if (currentRequest === requestId) {
+                activeController = null;
+
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+    }
+
+    function initializeCloudMonitoring() {
+        if (
+            !element(
+                "cloud-monitoring-dashboard"
+            )
+        ) {
+            return;
+        }
+
+        element("cloud-refresh-btn")
+            ?.addEventListener(
+                "click",
+                loadCloudDashboard
+            );
+
+        renderComponents({});
+
+        loadCloudDashboard();
+
+        setInterval(() => {
+            if (!document.hidden) {
+                loadCloudDashboard();
+            }
+        }, REFRESH_INTERVAL);
+
+        console.log(
+            "Cloud monitoring initialized successfully"
+        );
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener(
+            "DOMContentLoaded",
+
+            initializeCloudMonitoring,
+
+            { once: true }
+        );
+
+    } else {
+        initializeCloudMonitoring();
+    }
+
+})();

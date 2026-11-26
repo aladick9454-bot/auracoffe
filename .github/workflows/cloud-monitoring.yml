@@ -1,0 +1,46 @@
+name: AURA COFFEE - Independent Cloud Monitoring
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aura-coffee-cloud-monitoring
+  cancel-in-progress: false
+
+jobs:
+  cloud-monitoring:
+    name: Independent Cloud Check
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c "http.extraHeader=AUTHORIZATION: bearer ${GH_TOKEN}" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Verify Node.js
+        run: node --version
+
+      - name: Validate monitoring script
+        run: node --check scripts/cloud-monitor.mjs
+
+      - name: Execute independent monitoring
+        env:
+          CLOUD_MONITOR_SECRET: ${{ secrets.CLOUD_MONITOR_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+        run: node scripts/cloud-monitor.mjs

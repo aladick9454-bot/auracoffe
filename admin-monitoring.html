@@ -1327,6 +1327,108 @@
     </p>
 
 </section>
+<!-- ======================================
+     INDEPENDENT CLOUD MONITORING
+======================================= -->
+
+<section
+    id="cloud-monitoring-dashboard"
+    class="cloud-monitoring-dashboard"
+>
+
+    <div class="cloud-dashboard-header">
+
+        <div>
+            <h2>Independent Cloud Monitoring</h2>
+
+            <p>
+                Независимый контроль инфраструктуры
+                через GitHub Actions
+            </p>
+        </div>
+
+        <button
+            id="cloud-refresh-btn"
+            class="backup-refresh-btn"
+            type="button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+    <div
+        id="cloud-dashboard-message"
+        class="cloud-dashboard-message"
+        role="status"
+    >
+        Загрузка облачного мониторинга...
+    </div>
+
+    <div class="cloud-summary">
+
+        <article class="cloud-card">
+            <span>Общее состояние</span>
+
+            <strong id="cloud-overall-status">
+                —
+            </strong>
+        </article>
+
+        <article class="cloud-card">
+            <span>Компоненты с проблемами</span>
+
+            <strong id="cloud-problems-count">
+                —
+            </strong>
+        </article>
+
+    </div>
+
+    <div
+        id="cloud-components-grid"
+        class="cloud-components-grid"
+    ></div>
+
+    <div class="cloud-history-panel">
+
+        <h3>История облачных проверок</h3>
+
+        <div class="backup-table-wrapper">
+
+            <table class="backup-table">
+
+                <thead>
+                    <tr>
+                        <th>GitHub Run</th>
+                        <th>Дата проверки</th>
+                        <th>Статус</th>
+                        <th>Проблемы</th>
+                    </tr>
+                </thead>
+
+                <tbody id="cloud-history-body">
+                    <tr>
+                        <td colspan="4">
+                            Загрузка данных...
+                        </td>
+                    </tr>
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <p
+        id="cloud-updated-at"
+        class="cloud-updated-at"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
 
 
 <!-- ========================================

@@ -358,7 +358,11 @@ try {
     "monitoring_recovery_notifications",
     "monitoring_backup_runs",
     "monitoring_restore_tests",
-    "monitoring_backup_alert_state"
+    "monitoring_backup_alert_state",
+    "monitoring_heartbeats",
+    "monitoring_cloud_checks",
+    "monitoring_cloud_alert_state",
+    "monitoring_cloud_notifications"
 )
 
 
