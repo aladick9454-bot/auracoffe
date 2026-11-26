@@ -8896,3 +8896,931 @@ if (
     }
 
 })();
+
+/* =====================================
+   API PROTECTION DASHBOARD
+===================================== */
+
+;(() => {
+
+    "use strict";
+
+
+    function initializeProtectionDashboard() {
+
+        const dashboard = document.getElementById(
+
+            "protection-dashboard"
+        );
+
+
+        if (!dashboard) {
+            return;
+        }
+
+
+        const get = id =>
+
+            document.getElementById(id);
+
+
+        let loading = false;
+
+        let mutating = false;
+
+
+        const eventNames = {
+
+            rate_limit_exceeded:
+                "Превышение лимита",
+
+            automatic_block:
+                "Автоматическая блокировка",
+
+            manual_block:
+                "Ручная блокировка",
+
+            manual_unblock:
+                "Ручная разблокировка"
+        };
+
+
+        const scopeNames = {
+
+            admin_login:
+                "Авторизация",
+
+            public_write:
+                "Публичная запись",
+
+            public_read:
+                "Публичное чтение"
+        };
+
+
+        const metricFields = {
+
+            "protection-active":
+                "active_blocks",
+
+            "protection-exceeded":
+                "rate_limit_exceeded",
+
+            "protection-auto":
+                "automatic_blocks",
+
+            "protection-manual":
+                "manual_blocks",
+
+            "protection-revoked":
+                "manual_unblocks"
+        };
+
+
+        function formatDate(value) {
+
+            if (!value) {
+                return "—";
+            }
+
+
+            const date = new Date(value);
+
+
+            if (Number.isNaN(date.getTime())) {
+
+                return "—";
+            }
+
+
+            return date.toLocaleString(
+
+                "ru-RU",
+
+                {
+                    timeZone: "Asia/Novosibirsk"
+                }
+            );
+        }
+
+
+        function setMessage(message, type = "") {
+
+            const element = get(
+
+                "protection-message"
+            );
+
+
+            element.textContent = message;
+
+
+            element.classList.remove(
+
+                "protection-error",
+
+                "protection-success"
+            );
+
+
+            if (type === "error") {
+
+                element.classList.add(
+
+                    "protection-error"
+                );
+            }
+
+
+            if (type === "success") {
+
+                element.classList.add(
+
+                    "protection-success"
+                );
+            }
+        }
+
+
+        async function request(url, options = {}) {
+
+            const controller =
+
+                new AbortController();
+
+
+            const timeout = setTimeout(
+
+                () => controller.abort(),
+
+                15000
+            );
+
+
+            try {
+
+                const response = await fetch(
+
+                    url,
+
+                    {
+
+                        ...options,
+
+                        credentials: "same-origin",
+
+                        cache: "no-store",
+
+                        signal: controller.signal
+                    }
+                );
+
+
+                if (response.status === 401) {
+
+                    window.location.href =
+
+                        "/admin/login";
+
+
+                    throw new Error(
+
+                        "Authentication required"
+                    );
+                }
+
+
+                const data =
+
+                    await response.json()
+                        .catch(() => null);
+
+
+                if (
+
+                    !response.ok ||
+
+                    !data ||
+
+                    !data.ok
+
+                ) {
+
+                    throw new Error(
+
+                        data?.error ||
+
+                        `HTTP ${response.status}`
+                    );
+                }
+
+
+                return data;
+
+            } finally {
+
+                clearTimeout(timeout);
+            }
+        }
+
+
+        function appendCell(row, value) {
+
+            const cell =
+
+                document.createElement("td");
+
+
+            cell.textContent = value ?? "—";
+
+
+            row.appendChild(cell);
+
+
+            return cell;
+        }
+
+
+        function renderEmpty(body, colspan, message) {
+
+            body.replaceChildren();
+
+
+            const row =
+
+                document.createElement("tr");
+
+
+            const cell =
+
+                document.createElement("td");
+
+
+            cell.colSpan = colspan;
+
+
+            cell.textContent = message;
+
+
+            row.appendChild(cell);
+
+
+            body.appendChild(row);
+        }
+
+
+        function renderSummary(summary) {
+
+            for (
+
+                const [id, field]
+
+                of Object.entries(metricFields)
+
+            ) {
+
+                const value = Number(
+
+                    summary[field] ?? 0
+                );
+
+
+                get(id).textContent =
+
+                    Number.isFinite(value)
+
+                        ? value.toLocaleString("ru-RU")
+
+                        : "—";
+            }
+        }
+
+
+        function renderBlocks(blocks) {
+
+            const body = get(
+
+                "protection-blocks-body"
+            );
+
+
+            body.replaceChildren();
+
+
+            if (!blocks.length) {
+
+                renderEmpty(
+
+                    body,
+
+                    7,
+
+                    "Активные блокировки отсутствуют"
+                );
+
+                return;
+            }
+
+
+            const fragment =
+
+                document.createDocumentFragment();
+
+
+            for (const block of blocks) {
+
+                const row =
+
+                    document.createElement("tr");
+
+
+                appendCell(row, block.id);
+
+
+                appendCell(
+
+                    row,
+
+                    block.ip_address
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    block.block_type === "automatic"
+
+                        ? "Automatic"
+
+                        : "Manual"
+                );
+
+
+                appendCell(row, block.reason);
+
+
+                appendCell(
+
+                    row,
+
+                    `${block.remaining_minutes} мин.`
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    formatDate(block.expires_at)
+                );
+
+
+                const cell =
+
+                    document.createElement("td");
+
+
+                const button =
+
+                    document.createElement("button");
+
+
+                button.type = "button";
+
+
+                button.className =
+
+                    "protection-unblock-button";
+
+
+                button.textContent =
+
+                    "Разблокировать";
+
+
+                button.disabled = mutating;
+
+
+                button.addEventListener(
+
+                    "click",
+
+                    () => revokeBlock(block, button)
+                );
+
+
+                cell.appendChild(button);
+
+
+                row.appendChild(cell);
+
+
+                fragment.appendChild(row);
+            }
+
+
+            body.appendChild(fragment);
+        }
+
+
+        function renderEvents(events) {
+
+            const body = get(
+
+                "protection-events-body"
+            );
+
+
+            body.replaceChildren();
+
+
+            if (!events.length) {
+
+                renderEmpty(
+
+                    body,
+
+                    5,
+
+                    "События защиты отсутствуют"
+                );
+
+                return;
+            }
+
+
+            const fragment =
+
+                document.createDocumentFragment();
+
+
+            for (const event of events) {
+
+                const row =
+
+                    document.createElement("tr");
+
+
+                appendCell(row, event.id);
+
+
+                appendCell(
+
+                    row,
+
+                    eventNames[event.event_type] ||
+
+                    event.event_type
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    event.ip_address
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    scopeNames[event.scope] ||
+
+                    event.scope ||
+
+                    "—"
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    formatDate(event.created_at)
+                );
+
+
+                fragment.appendChild(row);
+            }
+
+
+            body.appendChild(fragment);
+        }
+
+
+        async function loadDashboard() {
+
+            if (loading) {
+                return false;
+            }
+
+
+            loading = true;
+
+
+            get("protection-refresh").disabled = true;
+
+
+            setMessage("Обновление данных...");
+
+
+            try {
+
+                const [
+
+                    summary,
+
+                    blocks,
+
+                    events
+
+                ] = await Promise.all([
+
+                    request(
+                        "/api/protection/summary"
+                    ),
+
+                    request(
+                        "/api/protection/blocks"
+                    ),
+
+                    request(
+                        "/api/protection/events"
+                    )
+                ]);
+
+
+                renderSummary(summary.summary);
+
+
+                renderBlocks(blocks.blocks || []);
+
+
+                renderEvents(events.events || []);
+
+
+                get(
+
+                    "protection-updated"
+
+                ).textContent =
+
+                    "Последнее обновление: " +
+
+                    formatDate(summary.generated_at);
+
+
+                setMessage(
+
+                    "Данные защиты актуальны",
+
+                    "success"
+                );
+
+
+                console.log(
+
+                    "API protection loaded:",
+
+                    summary
+                );
+
+
+                return true;
+
+            } catch (error) {
+
+                setMessage(
+
+                    "Ошибка загрузки: " +
+
+                    error.message,
+
+                    "error"
+                );
+
+
+                get(
+
+                    "protection-updated"
+
+                ).textContent =
+
+                    "Данные могут быть устаревшими";
+
+
+                console.error(
+
+                    "API protection dashboard error:",
+
+                    error
+                );
+
+
+                return false;
+
+            } finally {
+
+                loading = false;
+
+
+                get(
+
+                    "protection-refresh"
+
+                ).disabled = false;
+            }
+        }
+
+
+        function setMutationState(value) {
+
+            mutating = value;
+
+
+            get(
+
+                "protection-block-submit"
+
+            ).disabled = value;
+
+
+            dashboard.querySelectorAll(
+
+                ".protection-unblock-button"
+
+            ).forEach(button => {
+
+                button.disabled = value;
+            });
+        }
+
+
+        async function createBlock(event) {
+
+            event.preventDefault();
+
+
+            if (mutating || loading) {
+                return;
+            }
+
+
+            const ip = get(
+
+                "protection-ip"
+
+            ).value.trim();
+
+
+            const duration = Number(
+
+                get("protection-duration").value
+            );
+
+
+            const reason = get(
+
+                "protection-reason"
+
+            ).value.trim();
+
+
+            const confirmed = window.confirm(
+
+                `Заблокировать ${ip} ` +
+
+                `на ${duration} минут?`
+            );
+
+
+            if (!confirmed) {
+                return;
+            }
+
+
+            setMutationState(true);
+
+
+            try {
+
+                await request(
+
+                    "/api/protection/blocks",
+
+                    {
+
+                        method: "POST",
+
+                        headers: {
+
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+
+                            ip_address: ip,
+
+                            duration_minutes: duration,
+
+                            reason
+                        })
+                    }
+                );
+
+
+                get(
+
+                    "protection-block-form"
+
+                ).reset();
+
+
+                const refreshed =
+
+                    await loadDashboard();
+
+
+                if (refreshed) {
+
+                    setMessage(
+
+                        `IP ${ip} заблокирован`,
+
+                        "success"
+                    );
+                }
+
+            } catch (error) {
+
+                setMessage(
+
+                    "Не удалось подтвердить блокировку: " +
+
+                    error.message +
+
+                    ". Обнови список перед повтором.",
+
+                    "error"
+                );
+
+            } finally {
+
+                setMutationState(false);
+            }
+        }
+
+
+        async function revokeBlock(block, button) {
+
+            if (mutating || loading) {
+                return;
+            }
+
+
+            const confirmed = window.confirm(
+
+                `Разблокировать ${block.ip_address}?`
+            );
+
+
+            if (!confirmed) {
+                return;
+            }
+
+
+            setMutationState(true);
+
+
+            button.disabled = true;
+
+
+            try {
+
+                await request(
+
+                    `/api/protection/blocks/${block.id}/revoke`,
+
+                    {
+
+                        method: "POST",
+
+                        headers: {
+
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: "{}"
+                    }
+                );
+
+
+                const refreshed =
+
+                    await loadDashboard();
+
+
+                if (refreshed) {
+
+                    setMessage(
+
+                        `IP ${block.ip_address} разблокирован`,
+
+                        "success"
+                    );
+                }
+
+            } catch (error) {
+
+                setMessage(
+
+                    "Не удалось подтвердить разблокировку: " +
+
+                    error.message +
+
+                    ". Обнови список перед повтором.",
+
+                    "error"
+                );
+
+            } finally {
+
+                setMutationState(false);
+            }
+        }
+
+
+        get("protection-refresh")
+
+            .addEventListener(
+
+                "click",
+
+                () => {
+
+                    if (!mutating) {
+
+                        loadDashboard();
+                    }
+                }
+            );
+
+
+        get("protection-block-form")
+
+            .addEventListener(
+
+                "submit",
+
+                createBlock
+            );
+
+
+        setInterval(() => {
+
+            if (
+
+                !document.hidden &&
+
+                !loading &&
+
+                !mutating
+
+            ) {
+
+                loadDashboard();
+            }
+
+        }, 60000);
+
+
+        loadDashboard();
+
+
+        console.log(
+
+            "API protection initialized successfully"
+        );
+    }
+
+
+    if (document.readyState === "loading") {
+
+        document.addEventListener(
+
+            "DOMContentLoaded",
+
+            initializeProtectionDashboard
+        );
+
+    } else {
+
+        initializeProtectionDashboard();
+    }
+
+})();

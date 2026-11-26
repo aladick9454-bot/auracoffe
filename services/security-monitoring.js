@@ -88,6 +88,11 @@ function createSecurityMonitoring(pool) {
                     "/api/security/"
                 );
 
+            const isProtectionApi =
+                requestPath.startsWith(
+                    "/api/protection/"
+                );
+
             const isLogin =
                 requestPath === "/admin/login" &&
                 method === "POST";
@@ -123,10 +128,11 @@ function createSecurityMonitoring(pool) {
             } else if (
                 statusCode >= 500 &&
                 (
-                    isAdminPath ||
-                    isMonitoringApi ||
-                    isSecurityApi
-                )
+    isAdminPath ||
+    isMonitoringApi ||
+    isSecurityApi ||
+    isProtectionApi
+)
             ) {
 
                 eventType = "server_error";
@@ -136,18 +142,26 @@ function createSecurityMonitoring(pool) {
                 !isLogin &&
                 isMutation &&
                 (
-                    isAdminPath ||
-                    isMonitoringApi ||
-                    isSecurityApi
-                ) &&
+    isAdminPath ||
+    isMonitoringApi ||
+    isSecurityApi ||
+    isProtectionApi
+) &&
                 statusCode >= 200 &&
                 statusCode < 300
             ) {
 
-                eventType = isAdminPath ||
-                    req.path.includes("/acknowledge")
-                    ? "admin_action"
-                    : "protected_api_write";
+                eventType =
+
+    isAdminPath ||
+
+    isProtectionApi ||
+
+    req.path.includes("/acknowledge")
+
+        ? "admin_action"
+
+        : "protected_api_write";
             }
 
             if (!eventType) {

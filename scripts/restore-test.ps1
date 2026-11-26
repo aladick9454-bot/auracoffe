@@ -362,7 +362,12 @@ try {
     "monitoring_heartbeats",
     "monitoring_cloud_checks",
     "monitoring_cloud_alert_state",
-    "monitoring_cloud_notifications"
+    "monitoring_cloud_notifications",
+    "security_events",
+    "security_alerts",
+    "security_rate_limits",
+    "security_ip_blocks",
+    "security_protection_events"
 )
 
 

@@ -1882,6 +1882,287 @@
 
 </section>
 
+<section
+    id="protection-dashboard"
+    class="security-dashboard"
+>
+
+    <div class="security-header">
+
+        <div>
+
+            <h2>API Protection</h2>
+
+            <p>
+                Активная защита API AURA COFFEE
+            </p>
+
+        </div>
+
+        <button
+            type="button"
+            id="protection-refresh"
+            class="security-button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+
+    <p
+        id="protection-message"
+        role="status"
+        aria-live="polite"
+    >
+        Загрузка данных...
+    </p>
+
+
+    <h3>Статистика защиты за 24 часа</h3>
+
+
+    <div class="security-grid">
+
+        <div class="security-card">
+
+            <span>Активные блокировки</span>
+
+            <strong
+                id="protection-active"
+                class="security-critical"
+            >—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Превышения лимитов</span>
+
+            <strong
+                id="protection-exceeded"
+                class="security-warning"
+            >—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Автоматические блокировки</span>
+
+            <strong
+                id="protection-auto"
+            >—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Ручные блокировки</span>
+
+            <strong
+                id="protection-manual"
+            >—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Ручные разблокировки</span>
+
+            <strong
+                id="protection-revoked"
+            >—</strong>
+
+        </div>
+
+    </div>
+
+
+    <h3>Ручная блокировка IP</h3>
+
+
+    <form id="protection-block-form">
+
+        <div class="protection-form-grid">
+
+            <label>
+
+                IP-адрес
+
+                <input
+                    id="protection-ip"
+                    type="text"
+                    maxlength="45"
+                    placeholder="192.0.2.77"
+                    required
+                >
+
+            </label>
+
+
+            <label>
+
+                Продолжительность
+
+                <select id="protection-duration">
+
+                    <option value="5">
+                        5 минут
+                    </option>
+
+                    <option value="15">
+                        15 минут
+                    </option>
+
+                    <option value="30" selected>
+                        30 минут
+                    </option>
+
+                    <option value="60">
+                        1 час
+                    </option>
+
+                    <option value="1440">
+                        24 часа
+                    </option>
+
+                </select>
+
+            </label>
+
+
+            <label>
+
+                Причина
+
+                <input
+                    id="protection-reason"
+                    type="text"
+                    minlength="3"
+                    maxlength="200"
+                    required
+                >
+
+            </label>
+
+        </div>
+
+
+        <button
+            type="submit"
+            id="protection-block-submit"
+            class="protection-danger-button"
+        >
+            Заблокировать IP
+        </button>
+
+    </form>
+
+
+    <h3>Активные блокировки</h3>
+
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>IP</th>
+
+                    <th>Тип</th>
+
+                    <th>Причина</th>
+
+                    <th>Осталось</th>
+
+                    <th>До</th>
+
+                    <th>Действие</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="protection-blocks-body">
+
+                <tr>
+
+                    <td colspan="7">
+                        Загрузка...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <h3>История событий защиты</h3>
+
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Событие</th>
+
+                    <th>IP</th>
+
+                    <th>Категория</th>
+
+                    <th>Время</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="protection-events-body">
+
+                <tr>
+
+                    <td colspan="5">
+                        Загрузка...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <p
+        id="protection-updated"
+        class="security-updated"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
+
 </main>
 
 

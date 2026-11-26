@@ -12,6 +12,10 @@ const {
     createSecurityMonitoring
 } = require("./services/security-monitoring");
 
+const {
+    createApiProtection
+} = require("./services/api-protection");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -30,7 +34,12 @@ const pool = new Pool({
 const securityMonitoring =
     createSecurityMonitoring(pool);
 
+const apiProtection =
+    createApiProtection(pool);
+
     app.use(securityMonitoring.middleware);
+    
+    app.use(apiProtection.middleware);
 
 pool.on('error', (error) => {
   console.error('PostgreSQL pool error:', error.code);
@@ -4013,6 +4022,15 @@ registerCloudMonitoringRoutes(app, {
 securityMonitoring.registerRoutes(
     app,
     requireAdmin
+);
+
+apiProtection.registerRoutes(
+    app,
+    requireAdmin
+);
+
+console.log(
+    "API protection routes registered"
 );
 
 console.log(
