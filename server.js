@@ -4019,15 +4019,7 @@ console.log(
     "Security monitoring routes registered"
 );
 
-// ==========================================
-// SERVER START
-// ==========================================
 
-app.listen(port, () => {
-    console.log(
-        `AURA COFFEE: http://localhost:${port}`
-    );
-});
 
 // ==========================================
 // INDEPENDENT CLOUD MONITORING
