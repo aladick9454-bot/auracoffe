@@ -111,3 +111,48 @@ Perform restore tests periodically.
 
 Update this document whenever the infrastructure
 or recovery procedures change.
+
+## 13. Backup Reliability Monitoring
+
+Backup execution results are synchronized
+with Neon PostgreSQL through n8n and
+authenticated Express API endpoints.
+
+Monitoring tables:
+
+- monitoring_backup_runs
+- monitoring_restore_tests
+- monitoring_backup_alert_state
+
+Backup health thresholds:
+
+- Healthy: successful backup younger than 26 hours
+- Warning: backup age from 26 to 48 hours,
+  or latest backup attempt failed
+- Critical: backup age of 48 hours or more
+- Unknown: no successful backup registered
+
+Target RPO remains 24 hours.
+
+Restore tests should be performed every 30 days.
+
+The administration dashboard refreshes every
+60 seconds while the page is visible.
+
+Backup Watchdog checks backup health every
+15 minutes and sends Telegram notifications
+when the backup status changes.
+
+Unresolved problems trigger reminders
+approximately every 24 hours.
+
+Current limitations:
+
+- Watchdog notifications depend on n8n availability.
+- Local computer shutdown can prevent notifications.
+- Backup synchronization does not have a durable
+  retry queue.
+- Historical backups created before monitoring
+  integration are not included in the statistics.
+- Restore tests are started manually.
+- Full production disaster recovery is not verified.

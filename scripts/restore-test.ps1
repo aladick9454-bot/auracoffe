@@ -347,26 +347,19 @@ try {
     # ======================================
 
     $requiredTables = @(
-
-        "monitoring_snapshots",
-
-        "monitoring_incidents",
-
-        "monitoring_incident_events",
-
-        "monitoring_sla_policies",
-
-        "monitoring_incident_escalations",
-
-        "monitoring_recovery_policies",
-
-        "monitoring_recovery_jobs",
-
-        "monitoring_recovery_events",
-
-        "monitoring_recovery_notifications"
-
-    )
+    "monitoring_snapshots",
+    "monitoring_incidents",
+    "monitoring_incident_events",
+    "monitoring_sla_policies",
+    "monitoring_incident_escalations",
+    "monitoring_recovery_policies",
+    "monitoring_recovery_jobs",
+    "monitoring_recovery_events",
+    "monitoring_recovery_notifications",
+    "monitoring_backup_runs",
+    "monitoring_restore_tests",
+    "monitoring_backup_alert_state"
+)
 
 
     foreach ($table in $requiredTables) {
@@ -497,10 +490,102 @@ finally {
 # EXIT STATUS
 # ==========================================
 
+# ==========================================
+# RESTORE TEST STATUS NOTIFICATION
+# ==========================================
+
+try {
+    if ($manifest -and $manifest.backup_id) {
+
+        $configPath = Join-Path $env:USERPROFILE "AURA-Backups\backup.env"
+
+        $config = @{}
+
+        foreach ($line in Get-Content -LiteralPath $configPath) {
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+
+            if ($line.TrimStart().StartsWith("#")) {
+                continue
+            }
+
+            $parts = $line -split "=", 2
+
+            if ($parts.Count -eq 2) {
+                $config[$parts[0].Trim()] = $parts[1].Trim()
+            }
+        }
+
+        if (
+            $config["RESTORE_WEBHOOK_URL"] -and
+            $config["BACKUP_WEBHOOK_SECRET"]
+        ) {
+
+            $restoreStatus = "failed"
+            $checkedTablesCount = 0
+
+            if ($success) {
+                $restoreStatus = "passed"
+                $checkedTablesCount = @($requiredTables).Count
+            }
+
+            $restoreData = @{
+                project = "AURA COFFEE"
+                backup_id = $manifest.backup_id
+                tested_at = (Get-Date).ToUniversalTime().ToString("o")
+                status = $restoreStatus
+                duration_seconds = [Math]::Round(
+                    ((Get-Date) - $startedAt).TotalSeconds,
+                    2
+                )
+                checked_tables_count = $checkedTablesCount
+            }
+
+            if ($success -and $report) {
+                $restoreData.tested_at = $report.tested_at
+                $restoreData.duration_seconds = $report.duration_seconds
+            }
+
+            $requestParams = @{
+                Uri = $config["RESTORE_WEBHOOK_URL"]
+                Method = "Post"
+                Headers = @{
+                    "x-backup-secret" = $config["BACKUP_WEBHOOK_SECRET"]
+                }
+                ContentType = "application/json"
+                Body = ($restoreData | ConvertTo-Json -Compress)
+                TimeoutSec = 90
+                ErrorAction = "Stop"
+            }
+
+            $response = Invoke-RestMethod @requestParams
+
+            if ($response.ok -ne $true) {
+                throw "Restore status was not accepted"
+            }
+
+            Write-Host "Restore status synchronized" -ForegroundColor Green
+
+        } else {
+            Write-Warning "Restore webhook configuration missing"
+        }
+
+    } else {
+        Write-Warning "Restore status skipped: backup ID unavailable"
+    }
+
+} catch {
+    Write-Warning "Restore status delivery failed"
+}
+
+
+# ==========================================
+# FINAL EXIT STATUS
+# ==========================================
+
 if ($success) {
-
     exit 0
-
 }
 
 exit 1
