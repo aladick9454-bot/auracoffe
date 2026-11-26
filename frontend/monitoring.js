@@ -9824,3 +9824,483 @@ if (
     }
 
 })();
+
+/* =====================================
+   CI MONITORING DASHBOARD
+===================================== */
+
+;(() => {
+
+    "use strict";
+
+
+    function initializeCiDashboard() {
+
+        const dashboard = document.getElementById(
+
+            "ci-dashboard"
+        );
+
+
+        if (!dashboard) {
+
+            return;
+        }
+
+
+        const get = id =>
+
+            document.getElementById(id);
+
+
+        let loading = false;
+
+
+        function formatDate(value) {
+
+            if (!value) {
+
+                return "—";
+            }
+
+
+            const date = new Date(value);
+
+
+            if (Number.isNaN(date.getTime())) {
+
+                return "—";
+            }
+
+
+            return date.toLocaleString(
+
+                "ru-RU",
+
+                {
+
+                    timeZone: "Asia/Novosibirsk"
+                }
+            );
+        }
+
+
+        async function request(url) {
+
+            const response = await fetch(url, {
+
+                credentials: "same-origin",
+
+                cache: "no-store",
+
+                signal: AbortSignal.timeout(15000)
+            });
+
+
+            if (response.status === 401) {
+
+                window.location.href = "/admin/login";
+
+                throw new Error("Authentication required");
+            }
+
+
+            const data = await response.json();
+
+
+            if (!response.ok || !data.ok) {
+
+                throw new Error(
+
+                    data.error || `HTTP ${response.status}`
+                );
+            }
+
+
+            return data;
+        }
+
+
+        function appendCell(row, value) {
+
+            const cell = document.createElement("td");
+
+
+            cell.textContent = value ?? "—";
+
+
+            row.appendChild(cell);
+
+
+            return cell;
+        }
+
+
+        function renderSummary(summary) {
+
+            get("ci-total").textContent =
+
+                summary.total_runs ?? 0;
+
+
+            get("ci-success").textContent =
+
+                summary.successful_runs ?? 0;
+
+
+            get("ci-failed").textContent =
+
+                summary.failed_runs ?? 0;
+
+
+            get("ci-cancelled").textContent =
+
+                summary.cancelled_runs ?? 0;
+
+
+            const completed =
+
+                Number(summary.successful_runs || 0) +
+
+                Number(summary.failed_runs || 0);
+
+
+            get("ci-rate").textContent =
+
+                completed > 0
+
+                    ? `${Number(summary.success_rate).toFixed(2)}%`
+
+                    : "—";
+
+
+            const duration =
+
+                Number(summary.average_duration_seconds);
+
+
+            get("ci-duration").textContent =
+
+                duration > 0
+
+                    ? `${duration.toFixed(1)} сек.`
+
+                    : "—";
+        }
+
+
+        function renderStatusStrip(runs) {
+
+            const container = get("ci-status-strip");
+
+
+            container.replaceChildren();
+
+
+            const recent = runs.slice(0, 20).reverse();
+
+
+            for (const run of recent) {
+
+                const item = document.createElement("div");
+
+
+                const status = [
+
+                    "success",
+
+                    "failure",
+
+                    "cancelled"
+
+                ].includes(run.status)
+
+                    ? run.status
+
+                    : "cancelled";
+
+
+                item.className =
+
+                    `ci-status-item ${status}`;
+
+
+                item.title =
+
+                    `${run.workflow_name}: ${status} — ` +
+
+                    formatDate(run.checked_at);
+
+
+                container.appendChild(item);
+            }
+        }
+
+
+        function renderRuns(runs) {
+
+            const body = get("ci-runs-body");
+
+
+            body.replaceChildren();
+
+
+            if (!runs.length) {
+
+                const row = document.createElement("tr");
+
+                const cell = document.createElement("td");
+
+
+                cell.colSpan = 7;
+
+
+                cell.textContent =
+
+                    "История тестирования пока отсутствует";
+
+
+                row.appendChild(cell);
+
+                body.appendChild(row);
+
+                return;
+            }
+
+
+            for (const run of runs) {
+
+                const row = document.createElement("tr");
+
+
+                appendCell(
+
+                    row,
+
+                    run.workflow_name === "ci"
+
+                        ? "CI Pipeline"
+
+                        : "Production Smoke"
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    String(run.commit_sha || "").slice(0, 8)
+                );
+
+
+                appendCell(row, run.branch_name);
+
+
+                const statusCell = appendCell(
+
+                    row,
+
+                    run.status
+                );
+
+
+                if (run.status === "success") {
+
+                    statusCell.className = "ci-success";
+
+                } else if (run.status === "failure") {
+
+                    statusCell.className = "ci-failure";
+
+                } else {
+
+                    statusCell.className = "ci-cancelled";
+                }
+
+
+                appendCell(
+
+                    row,
+
+                    Number(run.duration_seconds) > 0
+
+                        ? `${run.duration_seconds} сек.`
+
+                        : "—"
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    formatDate(run.checked_at)
+                );
+
+
+                const linkCell = document.createElement("td");
+
+
+                if (
+
+                    /^https:\/\/github\.com\/aladick9454-bot\/auracoffe\/actions\/runs\/\d+$/
+
+                        .test(run.run_url)
+
+                ) {
+
+                    const link = document.createElement("a");
+
+
+                    link.href = run.run_url;
+
+                    link.target = "_blank";
+
+                    link.rel = "noopener noreferrer";
+
+                    link.className = "ci-report-link";
+
+                    link.textContent = "Открыть";
+
+
+                    linkCell.appendChild(link);
+
+                } else {
+
+                    linkCell.textContent = "—";
+                }
+
+
+                row.appendChild(linkCell);
+
+                body.appendChild(row);
+            }
+        }
+
+
+        async function loadDashboard() {
+
+            if (loading) {
+
+                return;
+            }
+
+
+            loading = true;
+
+
+            get("ci-refresh").disabled = true;
+
+
+            const message = get("ci-message");
+
+
+            message.classList.remove("ci-failure");
+
+
+            message.textContent = "Обновление данных...";
+
+
+            try {
+
+                const [summary, history] =
+
+                    await Promise.all([
+
+                        request("/api/ci/summary"),
+
+                        request("/api/ci/runs")
+                    ]);
+
+
+                renderSummary(summary.summary);
+
+
+                renderRuns(history.runs || []);
+
+
+                renderStatusStrip(history.runs || []);
+
+
+                get("ci-updated").textContent =
+
+                    "Последнее обновление: " +
+
+                    formatDate(summary.generated_at);
+
+
+                message.textContent =
+
+                    "Данные тестирования актуальны";
+
+
+                console.log("CI dashboard loaded");
+
+            } catch (error) {
+
+                message.textContent =
+
+                    "Ошибка загрузки: " + error.message;
+
+
+                message.classList.add("ci-failure");
+
+
+                get("ci-updated").textContent =
+
+                    "Данные могут быть устаревшими";
+
+            } finally {
+
+                loading = false;
+
+
+                get("ci-refresh").disabled = false;
+            }
+        }
+
+
+        get("ci-refresh").addEventListener(
+
+            "click",
+
+            loadDashboard
+        );
+
+
+        setInterval(() => {
+
+            if (!document.hidden) {
+
+                loadDashboard();
+            }
+
+        }, 60000);
+
+
+        loadDashboard();
+
+
+        console.log(
+
+            "CI monitoring initialized successfully"
+        );
+    }
+
+
+    if (document.readyState === "loading") {
+
+        document.addEventListener(
+
+            "DOMContentLoaded",
+
+            initializeCiDashboard
+        );
+
+    } else {
+
+        initializeCiDashboard();
+    }
+
+})();
+

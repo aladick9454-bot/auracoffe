@@ -1,0 +1,55 @@
+name: AURA COFFEE - Production Smoke Tests
+
+on:
+
+  schedule:
+    - cron: "17 */6 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aura-production-smoke
+  cancel-in-progress: false
+
+jobs:
+
+  smoke:
+
+    name: Production API Tests
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Record start time
+        run: echo "CI_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Run production smoke tests
+        id: smoke_tests
+        run: npm run test:smoke
+
+      - name: Save smoke test result
+        if: always() && steps.smoke_tests.outcome != 'skipped'
+        continue-on-error: true
+        env:
+          CI_STATUS: ${{ steps.smoke_tests.outcome }}
+          CI_WORKFLOW: production-smoke
+          CI_MONITOR_SECRET: ${{ secrets.CI_MONITOR_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/report-ci.cjs

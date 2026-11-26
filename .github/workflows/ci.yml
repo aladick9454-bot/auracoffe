@@ -1,0 +1,142 @@
+name: AURA COFFEE - CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aura-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  quality:
+
+    name: Code Quality and Automated Tests
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate project structure
+        run: npm run check
+
+      - name: Run unit and integration tests
+        run: npm test
+
+      - name: Generate CI summary
+        if: always()
+        run: |
+          echo "## AURA COFFEE - Code Quality" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Branch: $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
+
+  database:
+
+    name: PostgreSQL Integration Tests
+
+    needs: quality
+
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SQL tests
+        env:
+          CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+        run: npm run test:db
+
+
+  reporting:
+
+    name: Save CI Result
+
+    needs:
+      - quality
+      - database
+
+    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 5
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Calculate CI result
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          DATABASE_RESULT: ${{ needs.database.result }}
+        run: |
+          if [[ "$QUALITY_RESULT" == "success" && "$DATABASE_RESULT" == "success" ]]; then
+            echo "CI_STATUS=success" >> "$GITHUB_ENV"
+          elif [[ "$QUALITY_RESULT" == "cancelled" || "$DATABASE_RESULT" == "cancelled" ]]; then
+            echo "CI_STATUS=cancelled" >> "$GITHUB_ENV"
+          else
+            echo "CI_STATUS=failure" >> "$GITHUB_ENV"
+          fi
+
+      - name: Save CI result and notify
+        continue-on-error: true
+        env:
+          CI_WORKFLOW: ci
+          CLOUD_MONITOR_SECRET: ""
+          CI_MONITOR_SECRET: ${{ secrets.CI_MONITOR_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/report-ci.cjs

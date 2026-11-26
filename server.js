@@ -16,6 +16,12 @@ const {
     createApiProtection
 } = require("./services/api-protection");
 
+const {
+
+    registerCiMonitoringRoutes
+
+} = require("./services/ci-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -4028,6 +4034,13 @@ apiProtection.registerRoutes(
     app,
     requireAdmin
 );
+
+registerCiMonitoringRoutes(app, {
+
+    pool,
+
+    requireAdmin
+});
 
 console.log(
     "API protection routes registered"

@@ -85,18 +85,20 @@ function createApiProtection(pool) {
         }
 
 
-        const excludedPrefixes = [
+const excludedPrefixes = [
 
-            "/admin",
+    "/admin",
 
-            "/api/admin",
+    "/api/admin",
 
-            "/api/monitoring",
+    "/api/monitoring",
 
-            "/api/security",
+    "/api/security",
 
-            "/api/protection"
-        ];
+    "/api/protection",
+
+    "/api/ci"
+];
 
 
         const excluded = excludedPrefixes.some(

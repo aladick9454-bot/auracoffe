@@ -367,7 +367,8 @@ try {
     "security_alerts",
     "security_rate_limits",
     "security_ip_blocks",
-    "security_protection_events"
+    "security_protection_events",
+    "monitoring_ci_runs"
 )
 
 

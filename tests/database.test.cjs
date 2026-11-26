@@ -1,0 +1,268 @@
+const test = require("node:test");
+
+const assert = require("node:assert/strict");
+
+const { Pool } = require("pg");
+
+
+const databaseUrl =
+
+    process.env.CI_TEST_DATABASE_URL;
+
+
+if (!databaseUrl) {
+
+    throw new Error(
+
+        "CI_TEST_DATABASE_URL is required"
+    );
+}
+
+
+const pool = new Pool({
+
+    connectionString: databaseUrl,
+
+    max: 2,
+
+    connectionTimeoutMillis: 15000,
+
+    query_timeout: 20000
+});
+
+
+test.after(async () => {
+
+    await pool.end();
+});
+
+
+test("PostgreSQL connection works", async () => {
+
+    const result = await pool.query(
+
+        "SELECT 1 AS value"
+    );
+
+
+    assert.equal(result.rows[0].value, 1);
+});
+
+
+test("Required monitoring tables exist", async () => {
+
+    const required = [
+
+        "monitoring_snapshots",
+
+        "monitoring_incidents",
+
+        "monitoring_heartbeats",
+
+        "monitoring_cloud_checks",
+
+        "security_events",
+
+        "security_rate_limits",
+
+        "security_ip_blocks",
+
+        "security_protection_events",
+
+        "monitoring_ci_runs"
+    ];
+
+
+    const result = await pool.query(`
+
+        SELECT table_name
+
+        FROM information_schema.tables
+
+        WHERE table_schema = 'public'
+    `);
+
+
+    const existing = new Set(
+
+        result.rows.map(row => row.table_name)
+    );
+
+
+    for (const name of required) {
+
+        assert.ok(
+
+            existing.has(name),
+
+            `Missing table: ${name}`
+        );
+    }
+});
+
+
+test("CI summary view exists", async () => {
+
+    const result = await pool.query(
+
+        "SELECT * FROM monitoring_ci_summary"
+    );
+
+
+    assert.equal(result.rows.length, 1);
+});
+
+
+test("Rate limit SQL function rejects excess requests", async () => {
+
+    const client = await pool.connect();
+
+
+    try {
+
+        await client.query("BEGIN");
+
+
+        const scope =
+
+            `ci_test_${Date.now()}_${process.pid}`;
+
+
+        for (let i = 1; i <= 4; i++) {
+
+            const result = await client.query(
+
+                `
+
+                SELECT *
+
+                FROM consume_security_rate_limit(
+
+                    $1::inet,
+
+                    $2::text,
+
+                    3600,
+
+                    3,
+
+                    FALSE
+                )
+                `,
+
+                ["192.0.2.201", scope]
+            );
+
+
+            assert.equal(
+
+                result.rows[0].allowed,
+
+                i <= 3
+            );
+
+
+            assert.equal(
+
+                result.rows[0].blocked,
+
+                false
+            );
+        }
+
+    } finally {
+
+        try {
+
+            await client.query("ROLLBACK");
+
+        } finally {
+
+            client.release();
+        }
+    }
+});
+
+
+test("Active IP block rejects requests", async () => {
+
+    const client = await pool.connect();
+
+
+    try {
+
+        await client.query("BEGIN");
+
+
+        await client.query(`
+
+            INSERT INTO security_ip_blocks (
+
+                ip_address,
+
+                block_type,
+
+                reason,
+
+                expires_at
+            )
+
+            VALUES (
+
+                '192.0.2.202',
+
+                'manual',
+
+                'Automated CI test',
+
+                NOW() + INTERVAL '5 minutes'
+            )
+        `);
+
+
+        const result = await client.query(`
+
+            SELECT *
+
+            FROM consume_security_rate_limit(
+
+                '192.0.2.202'::inet,
+
+                'ci_block_test',
+
+                60,
+
+                20,
+
+                FALSE
+            )
+        `);
+
+
+        assert.equal(
+
+            result.rows[0].allowed,
+
+            false
+        );
+
+
+        assert.equal(
+
+            result.rows[0].blocked,
+
+            true
+        );
+
+    } finally {
+
+        try {
+
+            await client.query("ROLLBACK");
+
+        } finally {
+
+            client.release();
+        }
+    }
+});

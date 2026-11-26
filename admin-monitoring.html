@@ -2163,6 +2163,171 @@
 
 </section>
 
+<section
+    id="ci-dashboard"
+    class="security-dashboard"
+>
+
+    <div class="security-header">
+
+        <div>
+
+            <h2>CI &amp; Automated Testing</h2>
+
+            <p>
+                Автоматическое тестирование AURA COFFEE
+            </p>
+
+        </div>
+
+        <button
+            type="button"
+            id="ci-refresh"
+            class="security-button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+
+    <p id="ci-message" role="status">
+        Загрузка данных...
+    </p>
+
+
+    <h3>Статистика за 30 дней</h3>
+
+
+    <div class="security-grid">
+
+        <div class="security-card">
+
+            <span>Всего запусков</span>
+
+            <strong id="ci-total">—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Успешные запуски</span>
+
+            <strong
+                id="ci-success"
+                class="ci-success"
+            >—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Ошибки</span>
+
+            <strong
+                id="ci-failed"
+                class="ci-failure"
+            >—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Success Rate</span>
+
+            <strong id="ci-rate">—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Средняя длительность</span>
+
+            <strong id="ci-duration">—</strong>
+
+        </div>
+
+
+        <div class="security-card">
+
+            <span>Отменённые запуски</span>
+
+            <strong id="ci-cancelled">—</strong>
+
+        </div>
+
+    </div>
+
+
+    <h3>Последние результаты</h3>
+
+
+    <div
+        id="ci-status-strip"
+        class="ci-status-strip"
+    ></div>
+
+
+    <h3>История тестирования</h3>
+
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Workflow</th>
+
+                    <th>Commit</th>
+
+                    <th>Ветка</th>
+
+                    <th>Статус</th>
+
+                    <th>Длительность</th>
+
+                    <th>Дата</th>
+
+                    <th>Отчёт</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="ci-runs-body">
+
+                <tr>
+
+                    <td colspan="7">
+                        Загрузка...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <p
+        id="ci-updated"
+        class="security-updated"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
+
 </main>
 
 
