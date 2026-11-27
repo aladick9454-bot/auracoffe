@@ -673,19 +673,25 @@ if ($lockStream) {
     TimeoutSec = 15
 }
 
-Invoke-RestMethod @requestParams | Out-Null
+$response = Invoke-RestMethod @requestParams
+
+if ($response.ok -eq $false) {
+
+    throw "Backup status was rejected"
+
+}
 
                 Write-Host `
                     "Backup status sent to n8n" `
                     -ForegroundColor Green
 
             }
-            catch {
+catch {
 
-                Write-Warning `
-                    "Backup status delivery failed"
+    Write-Warning "Backup status delivery failed"
+    Write-Warning $_.Exception.Message
 
-            }
+}
 
         }
         else {

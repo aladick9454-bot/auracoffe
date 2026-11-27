@@ -156,3 +156,33 @@ Current limitations:
   integration are not included in the statistics.
 - Restore tests are started manually.
 - Full production disaster recovery is not verified.
+
+
+## 14. Backup Reliability Improvements
+
+- Backup configuration updates preserve existing
+  webhook settings.
+- Backup notification responses are validated.
+- Automated tests cover backup monitoring route
+  registration and invalid payload rejection.
+- Database backups and local credentials must
+  remain outside the Git repository.
+- Backup age and restore duration are measured
+  during recovery exercises.
+- Production backups require encrypted storage.
+- An independent encrypted offsite backup
+  remains a future improvement.
+
+## 15. Recovery Test Record
+
+- Test date: 2026-11-27T11:13:18.8865123Z
+- Backup ID: 2026-11-27_17-59-46_83cef053
+- Backup age (hours): 0,2
+- Restore duration (minutes): passed
+- Restore status: 0,42
+- Checked tables: 26
+- Exported workflows: 30
+- Monitoring synchronization: SUCCESS (restore)
+
+An isolated database restore does not constitute
+a complete production disaster recovery test.

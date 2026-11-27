@@ -12,6 +12,25 @@ New-Item `
 $configPath = Join-Path `
     $backupRoot "backup.env"
 
+$existingConfig = @{}
+
+if (Test-Path -LiteralPath $configPath) {
+
+    foreach ($line in Get-Content -LiteralPath $configPath) {
+
+        $parts = $line -split "=", 2
+
+        if (
+            $parts.Count -eq 2 -and
+            -not $line.TrimStart().StartsWith("#")
+        ) {
+            $existingConfig[$parts[0].Trim()] = $parts[1]
+        }
+
+    }
+
+}
+
 $pgHost = Read-Host "Neon direct host"
 $pgDatabase = Read-Host "Database name"
 $pgUser = Read-Host "Database user"
@@ -82,6 +101,20 @@ else {
         "RETENTION_DAYS=30"
 
     )
+
+foreach ($key in @(
+    "BACKUP_WEBHOOK_URL",
+    "RESTORE_WEBHOOK_URL",
+    "BACKUP_WEBHOOK_SECRET"
+)) {
+
+    if ($existingConfig.ContainsKey($key)) {
+
+        $lines += "$key=$($existingConfig[$key])"
+
+    }
+
+}
 
     [System.IO.File]::WriteAllLines(
         $configPath,

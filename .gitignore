@@ -15,3 +15,5 @@ restore-report.json
 FAILED.txt
 database/baseline.tmp.sql
 reports/
+AURA-Backups/
+AURA-Backup-Status/
