@@ -45,38 +45,46 @@ test("Public website is available", async () => {
 
 
 test("Backend health endpoint works", async () => {
-
     const response = await request(
-
         `${BASE_URL}/health`
     );
 
-
     assert.equal(response.status, 200);
 
+    const data = await response.json();
 
-    const body = await response.json();
+    assert.equal(data.status, "ok");
 
+    assert.equal(data.service, "aura-coffee-api");
 
-    assert.equal(body.ok, true);
+    assert.ok(
+        Number.isFinite(data.uptime_seconds)
+    );
+
+    assert.ok(data.uptime_seconds >= 0);
+
+    assert.ok(
+        Number.isFinite(Date.parse(data.timestamp))
+    );
 });
 
 
 test("Database readiness endpoint works", async () => {
-
     const response = await request(
-
         `${BASE_URL}/ready`
     );
 
-
     assert.equal(response.status, 200);
 
+    const data = await response.json();
 
-    const body = await response.json();
+    assert.equal(data.status, "ready");
 
+    assert.equal(data.database, "healthy");
 
-    assert.equal(body.ok, true);
+    assert.ok(
+        Number.isFinite(Date.parse(data.timestamp))
+    );
 });
 
 
