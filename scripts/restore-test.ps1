@@ -373,6 +373,40 @@ try {
     "database_metadata"
 )
 
+$releaseMigration = Invoke-Docker -DockerArgs @(
+    "exec",
+    $containerName,
+    "psql",
+    "-U",
+    "postgres",
+    "-d",
+    "aura_restore_test",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-tA",
+    "-c",
+    "SELECT COUNT(*) FROM public.schema_migrations WHERE name ~ '^[0-9]+_release_management[.]sql$';"
+)
+
+if ([int]$releaseMigration -gt 0) {
+
+    $requiredTables += @(
+        "application_releases",
+        "application_release_events"
+    )
+
+    Write-Host "Release migration detected" `
+        -ForegroundColor Cyan
+
+} else {
+
+    Write-Host "Release migration not applied yet" `
+        -ForegroundColor Yellow
+
+}
+
+Write-Host "Required tables: $($requiredTables.Count)"
+
 
     foreach ($table in $requiredTables) {
 
@@ -588,7 +622,26 @@ try {
     }
 
 } catch {
+
     Write-Warning "Restore status delivery failed"
+
+    if ($_.Exception.Response) {
+
+        Write-Warning (
+            "HTTP status: " +
+            [int]$_.Exception.Response.StatusCode
+        )
+
+    } else {
+
+        Write-Warning (
+            "Error type: " +
+            $_.Exception.GetType().Name
+        )
+
+    }
+
+    $success = $false
 }
 
 
