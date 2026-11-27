@@ -229,6 +229,37 @@ jobs:
 
         run: npm ci
 
+      - name: Diagnose release environment
+        env:
+          CHECK_PRODUCTION_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          CHECK_RENDER_KEY: ${{ secrets.RENDER_API_KEY }}
+          CHECK_RENDER_SERVICE: ${{ secrets.RENDER_SERVICE_ID }}
+          CHECK_TEST_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+        run: |
+          node -e '
+            const names = [
+              "CHECK_PRODUCTION_URL",
+              "CHECK_RENDER_KEY",
+              "CHECK_RENDER_SERVICE",
+              "CHECK_TEST_URL",
+              "PRODUCTION_DATABASE_URL",
+              "RENDER_API_KEY",
+              "RENDER_SERVICE_ID",
+              "CI_TEST_DATABASE_URL"
+            ];
+
+            for (const name of names) {
+              const present = Boolean(
+                process.env[name]?.trim()
+              );
+
+              console.log(
+                name + ": " +
+                (present ? "PRESENT" : "MISSING")
+              );
+            }
+          '
+
       - name: Check release safety requirements
 
         run: npm run release:preflight
