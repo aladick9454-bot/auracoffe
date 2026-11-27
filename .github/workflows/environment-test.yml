@@ -1,0 +1,42 @@
+name: AURA COFFEE - Environment Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-production-environment:
+    name: Test Production Environment
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+
+    steps:
+      - name: Check environment secrets
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+        run: |
+          failed=0
+
+          for name in \
+            PRODUCTION_DATABASE_URL \
+            RENDER_API_KEY \
+            RENDER_SERVICE_ID \
+            CI_TEST_DATABASE_URL
+          do
+            if [ -n "${!name}" ]; then
+              echo "$name: PRESENT"
+            else
+              echo "$name: MISSING"
+              failed=1
+            fi
+          done
+
+          exit "$failed"
