@@ -41,10 +41,20 @@ const {
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
+const helmet = require('helmet');
 const path = require('path');
 const { Pool } = require('pg');
 
 const app = express();
+
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: {
+        policy: "cross-origin"
+    }
+}));
+
+app.disable("x-powered-by");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -347,11 +357,16 @@ app.set('trust proxy', 1);
 
 // Разрешённые адреса frontend
 const allowedOrigins = [
-  'https://aladick9454-bot.github.io',
-  'http://127.0.0.1:5500',
-  'http://localhost:5500',
-  'http://127.0.0.1:5501',
-  'http://localhost:5501'
+    "https://aladick9454-bot.github.io",
+
+    ...(process.env.NODE_ENV !== "production"
+        ? [
+            "http://127.0.0.1:5500",
+            "http://localhost:5500",
+            "http://127.0.0.1:5501",
+            "http://localhost:5501"
+        ]
+        : [])
 ];
 
 // Проверка доступности сервера
@@ -395,34 +410,53 @@ app.get('/ready', async (req, res) => {
 });
 
 
-// Настройка CORS
+// ========================================
+// CORS SECURITY
+// ========================================
+
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+    const origin = req.get("Origin");
 
-  if (allowedOrigins.includes(origin)) {
+    const sameOrigin =
+        `${req.protocol}://${req.get("host")}`;
+
+    res.vary("Origin");
+
+    if (!origin) {
+        return next();
+    }
+
+    const permitted =
+        origin === sameOrigin ||
+        allowedOrigins.includes(origin);
+
+    if (!permitted) {
+        return res.status(403).json({
+            ok: false,
+            error: "Origin not allowed"
+        });
+    }
+
     res.setHeader(
-      'Access-Control-Allow-Origin',
-      origin
+        "Access-Control-Allow-Origin",
+        origin
     );
-  }
 
-  res.setHeader('Vary', 'Origin');
+    res.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET, POST, OPTIONS"
+    );
 
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, OPTIONS'
-  );
+    res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type"
+    );
 
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type'
-  );
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(204);
+    }
 
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-
-  next();
+    next();
 });
 
 // Настройка Express
@@ -433,44 +467,133 @@ app.use(express.urlencoded({
   limit: '2kb'
 }));
 
-// Запрещаем прямой доступ к защищённым файлам
-app.use((req, res, next) => {
-  const pathname = req.path.toLowerCase();
+// ========================================
+// SECURE STATIC FILES
+// ========================================
 
-const protectedFiles = [
-  '/monitoring.html',
-  '/monitoring.js',
-  '/monitoring.css',
-  '/admin-monitoring.html',
-  '/frontend/monitoring.html',
-  '/frontend/monitoring.js',
-  '/frontend/monitoring.css',
-  '/frontend/admin-monitoring.html',
-  '/server.js',
-  '/package.json',
-  '/package-lock.json'
-];
+const publicStaticExtensions = new Set([
+    ".html",
+    ".css",
+    ".js",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".avif",
+    ".gif"
+]);
 
-  if (
-    protectedFiles.includes(pathname) ||
-    pathname === '/.env' ||
-    pathname.startsWith('/.git/') ||
-    pathname.startsWith('/node_modules/')
-  ) {
-    return res.sendStatus(404);
-  }
+const publicStaticDirectories = new Set([
+    "assets",
+    "images",
+    "img",
+    "css",
+    "js",
+    "fonts",
+    "frontend"
+]);
 
-  next();
-});
+const publicRootFiles = new Set([
+    "index.html",
+    "style.css",
+    "styles.css",
+    "script.js",
+    "main.js",
+    "favicon.ico",
+    "robots.txt",
+    "sitemap.xml"
+]);
 
-// Статические файлы
-app.use(
-  express.static(path.join(__dirname), {
-    index: 'index.html',
-    dotfiles: 'deny',
-    extensions: false
-  })
+const privateStaticFiles = new Set([
+    "monitoring.html",
+    "monitoring.js",
+    "monitoring.css",
+    "admin-monitoring.html"
+]);
+
+const servePublicStatic = express.static(
+    __dirname,
+    {
+        index: "index.html",
+        dotfiles: "deny",
+        extensions: false,
+        redirect: false
+    }
 );
+
+app.use((req, res, next) => {
+    if (!["GET", "HEAD"].includes(req.method)) {
+        return next();
+    }
+
+    let pathname;
+
+    try {
+        pathname = decodeURIComponent(req.path);
+    } catch {
+        return res.sendStatus(400);
+    }
+
+    if (
+        pathname.includes("\\") ||
+        pathname.includes("\0") ||
+        pathname.includes("%")
+    ) {
+        return res.sendStatus(400);
+    }
+
+    const segments = pathname
+        .split("/")
+        .filter(Boolean);
+
+    if (segments.some(segment =>
+        segment.startsWith(".")
+    )) {
+        return res.sendStatus(404);
+    }
+
+    if (pathname === "/") {
+        return servePublicStatic(req, res, next);
+    }
+
+    const filename =
+        segments.at(-1)?.toLowerCase() || "";
+
+    if (privateStaticFiles.has(filename)) {
+        if (segments[0] === "admin") {
+            return next();
+        }
+
+        return res.sendStatus(404);
+    }
+
+    if (
+        segments.length === 1 &&
+        publicRootFiles.has(filename)
+    ) {
+        return servePublicStatic(req, res, next);
+    }
+
+    const directory =
+        segments[0]?.toLowerCase();
+
+    const extension =
+        path.extname(filename);
+
+    if (
+        segments.length > 1 &&
+        publicStaticDirectories.has(directory) &&
+        publicStaticExtensions.has(extension)
+    ) {
+        return servePublicStatic(req, res, next);
+    }
+
+    return next();
+});
 
 // Ограничение количества заявок
 const requests = new Map();
@@ -4028,14 +4151,6 @@ registerBackupMonitoringRoutes(app, {
     requireAdmin
 });
 
-// ==========================================
-// INDEPENDENT CLOUD MONITORING
-// ==========================================
-
-registerCloudMonitoringRoutes(app, {
-    pool,
-    requireAdmin
-});
 
 // ==========================================
 // SECURITY MONITORING
@@ -4097,6 +4212,55 @@ console.log(
 registerCloudMonitoringRoutes(app, {
     pool,
     requireAdmin
+});
+
+// ========================================
+// GLOBAL ERROR HANDLER
+// ========================================
+
+app.use((error, req, res, next) => {
+    if (res.headersSent) {
+        return next(error);
+    }
+
+    res.set("Cache-Control", "no-store");
+
+    if (error.type === "entity.too.large") {
+        return res.status(413).json({
+            ok: false,
+            error: "Request body too large"
+        });
+    }
+
+    if (error.type === "entity.parse.failed") {
+        return res.status(400).json({
+            ok: false,
+            error: "Invalid request body"
+        });
+    }
+
+    const status = error.status || error.statusCode;
+
+    if (
+        Number.isInteger(status) &&
+        status >= 400 &&
+        status < 500
+    ) {
+        return res.status(status).json({
+            ok: false,
+            error: "Invalid request"
+        });
+    }
+
+    console.error(
+        "Unhandled request error:",
+        error.code || error.name || "UnknownError"
+    );
+
+    return res.status(500).json({
+        ok: false,
+        error: "Internal server error"
+    });
 });
 
 // Запуск сервера
