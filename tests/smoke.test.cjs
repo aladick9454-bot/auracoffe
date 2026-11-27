@@ -96,7 +96,13 @@ const protectedRoutes = [
 
     "/api/migrations/summary",
 
-    "/api/migrations/history"
+    "/api/migrations/history",
+
+    "/api/releases/summary",
+
+    "/api/releases/history",
+
+    "/api/releases/1/events"
 ];
 
 

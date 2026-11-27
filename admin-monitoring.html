@@ -2486,6 +2486,155 @@
 
 </section>
 
+<section
+    id="release-dashboard"
+    class="security-dashboard"
+>
+
+    <div class="security-header">
+
+        <div>
+
+            <h2>Release Management</h2>
+
+            <p>
+                Управление публикациями приложения
+            </p>
+
+        </div>
+
+        <button
+            type="button"
+            id="release-refresh"
+            class="security-button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+    <p
+        id="release-message"
+        role="status"
+    >
+        Загрузка данных...
+    </p>
+
+    <div class="security-grid">
+
+        <div class="security-card">
+
+            <span>Latest Release</span>
+
+            <strong id="release-version">—</strong>
+
+        </div>
+
+        <div class="security-card">
+
+            <span>Release Status</span>
+
+            <strong id="release-status">—</strong>
+
+        </div>
+
+        <div class="security-card">
+
+            <span>Total Releases</span>
+
+            <strong id="release-total">—</strong>
+
+        </div>
+
+        <div class="security-card">
+
+            <span>Success Rate</span>
+
+            <strong id="release-success-rate">—</strong>
+
+        </div>
+
+        <div class="security-card">
+
+            <span>Successful Rollbacks</span>
+
+            <strong id="release-rollbacks">—</strong>
+
+        </div>
+
+        <div class="security-card">
+
+            <span>Average Duration</span>
+
+            <strong id="release-duration">—</strong>
+
+        </div>
+
+    </div>
+
+    <h3>Release History</h3>
+
+    <div class="security-table-wrapper">
+
+        <table class="security-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Version</th>
+
+                    <th>Commit</th>
+
+                    <th>Status</th>
+
+                    <th>Schema</th>
+
+                    <th>Smoke Tests</th>
+
+                    <th>Duration</th>
+
+                    <th>Date</th>
+
+                    <th>Events</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="release-history">
+
+                <tr>
+
+                    <td colspan="8">
+                        Загрузка...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <h3>Release Events</h3>
+
+    <div id="release-events">
+
+        Выбери релиз для просмотра событий.
+
+    </div>
+
+    <p
+        id="release-updated"
+        class="security-updated"
+    >
+        Ожидание обновления...
+    </p>
+
+</section>
+
 </main>
 
 

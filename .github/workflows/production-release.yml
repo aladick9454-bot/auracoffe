@@ -1,0 +1,407 @@
+name: AURA COFFEE - Production Release
+
+on:
+
+  workflow_dispatch:
+
+    inputs:
+
+      version:
+
+        description: "Release version, for example 1.0.0"
+
+        required: true
+
+        type: string
+
+      confirmation:
+
+        description: "Type RELEASE_PRODUCTION"
+
+        required: true
+
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aura-production-migrations
+  cancel-in-progress: false
+
+jobs:
+
+  validation:
+
+    name: Validate Release Request
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 5
+
+    steps:
+
+      - name: Validate confirmation and version
+
+        env:
+
+          VERSION: ${{ inputs.version }}
+
+          CONFIRMATION: ${{ inputs.confirmation }}
+
+        run: |
+
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+
+            echo "Production release requires main branch"
+
+            exit 1
+
+          fi
+
+
+          if [[ "$CONFIRMATION" != "RELEASE_PRODUCTION" ]]; then
+
+            echo "Invalid production confirmation"
+
+            exit 1
+
+          fi
+
+
+          if [[ ! "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+
+            echo "Invalid release version"
+
+            exit 1
+
+          fi
+
+
+          echo "RELEASE REQUEST VALIDATED"
+
+
+  quality:
+
+    name: Code Quality and Automated Tests
+
+    needs: validation
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+
+        with:
+
+          persist-credentials: false
+
+      - name: Setup Node.js
+
+        uses: actions/setup-node@v4
+
+        with:
+
+          node-version: "22"
+
+      - name: Install dependencies
+
+        run: npm ci
+
+      - name: Validate project structure
+
+        run: npm run check
+
+      - name: Run automated tests
+
+        run: npm test
+
+
+  testing:
+
+    name: Test Database Migrations
+
+    needs: quality
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    concurrency:
+
+      group: aura-test-database
+
+      cancel-in-progress: false
+
+    env:
+
+      MIGRATION_TARGET: test
+
+      CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+
+    steps:
+
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+
+        with:
+
+          persist-credentials: false
+
+      - name: Setup Node.js
+
+        uses: actions/setup-node@v4
+
+        with:
+
+          node-version: "22"
+
+      - name: Install dependencies
+
+        run: npm ci
+
+      - name: Apply test migrations
+
+        run: npm run db:migrate
+
+      - name: Verify test migrations
+
+        run: npm run db:verify
+
+      - name: Run SQL tests
+
+        run: npm run test:db
+
+
+  production:
+
+    name: Controlled Production Deployment
+
+    needs: testing
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 60
+
+    environment: production
+
+    env:
+
+      MIGRATION_TARGET: production
+
+      RELEASE_VERSION: ${{ inputs.version }}
+
+      RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      CI_TEST_DATABASE_URL: ${{ secrets.CI_TEST_DATABASE_URL }}
+
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+
+    steps:
+
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+
+        with:
+
+          persist-credentials: false
+
+      - name: Setup Node.js
+
+        uses: actions/setup-node@v4
+
+        with:
+
+          node-version: "22"
+
+      - name: Install dependencies
+
+        run: npm ci
+
+      - name: Check release safety requirements
+
+        run: npm run release:preflight
+
+      - name: Check production migration status
+
+        run: npm run db:status
+
+      - name: Apply production migrations
+
+        env:
+
+          MIGRATION_CONFIRM: APPLY_PRODUCTION
+
+        run: npm run db:migrate
+
+      - name: Verify production migrations
+
+        run: npm run db:verify
+
+      - name: Compare database schemas
+
+        run: npm run db:schema
+
+      - name: Deploy and verify production release
+
+        env:
+
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+        run: npm run release:deploy
+
+      - name: Generate release summary
+
+        if: always()
+
+        env:
+
+          VERSION: ${{ inputs.version }}
+
+          RESULT: ${{ job.status }}
+
+        run: |
+
+          echo "## AURA COFFEE - Production Release" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Result: $RESULT" >> "$GITHUB_STEP_SUMMARY"
+
+
+  notification:
+
+    name: Release Workflow Result
+
+    needs:
+
+      - validation
+
+      - quality
+
+      - testing
+
+      - production
+
+    if: always()
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 5
+
+    env:
+
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      VALIDATION_RESULT: ${{ needs.validation.result }}
+
+      QUALITY_RESULT: ${{ needs.quality.result }}
+
+      TESTING_RESULT: ${{ needs.testing.result }}
+
+      PRODUCTION_RESULT: ${{ needs.production.result }}
+
+      RELEASE_VERSION: ${{ inputs.version }}
+
+    steps:
+
+      - name: Notify workflow completion
+
+        continue-on-error: true
+
+        shell: bash
+
+        run: |
+
+          node --input-type=module <<'JS'
+
+          const token = process.env.TELEGRAM_BOT_TOKEN;
+
+          const chatId = process.env.TELEGRAM_CHAT_ID;
+
+          if (!token || !chatId) process.exit(0);
+
+          const message = [
+
+            "AURA COFFEE - RELEASE PIPELINE",
+
+            "",
+
+            `Version: ${process.env.RELEASE_VERSION}`,
+
+            `Validation: ${process.env.VALIDATION_RESULT}`,
+
+            `Quality: ${process.env.QUALITY_RESULT}`,
+
+            `Database tests: ${process.env.TESTING_RESULT}`,
+
+            `Production: ${process.env.PRODUCTION_RESULT}`,
+
+            "",
+
+            `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+
+          ].join("\n");
+
+          try {
+
+            const response = await fetch(
+
+              `https://api.telegram.org/bot${token}/sendMessage`,
+
+              {
+
+                method: "POST",
+
+                headers: {"Content-Type": "application/json"},
+
+                body: JSON.stringify({
+
+                  chat_id: chatId,
+
+                  text: message,
+
+                  disable_web_page_preview: true
+
+                }),
+
+                signal: AbortSignal.timeout(20000)
+
+              }
+
+            );
+
+            if (!response.ok) {
+
+              console.error("Telegram notification failed");
+
+              process.exitCode = 1;
+
+            }
+
+          } catch {
+
+            console.error("Telegram notification failed");
+
+            process.exitCode = 1;
+
+          }
+
+          JS

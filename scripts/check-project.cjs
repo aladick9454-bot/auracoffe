@@ -70,7 +70,21 @@ const requiredFiles = [
 
 ".github/workflows/database-migrations.yml",
 
-"docs/DATABASE-MIGRATIONS.md"
+"docs/DATABASE-MIGRATIONS.md",
+
+"database/migrations/0003_release_management.sql",
+
+"scripts/release-manager.cjs",
+
+"scripts/release-preflight.cjs",
+
+"services/release-monitoring.js",
+
+"tests/release.test.cjs",
+
+".github/workflows/production-release.yml",
+
+"docs/RELEASE-MANAGEMENT.md"
 ];
 
 

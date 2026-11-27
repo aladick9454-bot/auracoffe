@@ -73,7 +73,11 @@ test("Required monitoring tables exist", async () => {
 
         "schema_migrations",
 
-        "database_metadata"
+        "database_metadata",
+
+        "application_releases",
+
+        "application_release_events"
     ];
 
 
@@ -318,5 +322,79 @@ test("Database migration summary is available", async () => {
     assert.ok(
 
         Number(result.rows[0].total_migrations) >= 2
+    );
+});
+
+test("Release summary is available", async () => {
+
+    const result = await pool.query(`
+
+        SELECT *
+
+        FROM public.application_release_summary
+    `);
+
+
+    assert.equal(result.rows.length, 1);
+
+
+    assert.ok(
+
+        Number(result.rows[0].total_releases) >= 0
+    );
+});
+
+
+test("Release events table is available", async () => {
+
+    const result = await pool.query(`
+
+        SELECT COUNT(*) AS count
+
+        FROM public.application_release_events
+    `);
+
+
+    assert.ok(
+
+        Number(result.rows[0].count) >= 0
+    );
+});
+
+
+test("Release statuses are valid", async () => {
+
+    const result = await pool.query(`
+
+        SELECT COUNT(*) AS invalid_count
+
+        FROM public.application_releases
+
+        WHERE status NOT IN (
+
+            'pending',
+
+            'deploying',
+
+            'verifying',
+
+            'success',
+
+            'failed',
+
+            'rolling_back',
+
+            'rolled_back',
+
+            'rollback_failed'
+        )
+    `);
+
+
+    assert.equal(
+
+        Number(result.rows[0].invalid_count),
+
+        0
     );
 });

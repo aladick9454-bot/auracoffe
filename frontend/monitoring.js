@@ -10742,3 +10742,569 @@ if (
 
 })();
 
+/* =====================================
+   RELEASE MANAGEMENT DASHBOARD
+===================================== */
+
+;(() => {
+
+    "use strict";
+
+
+    function initializeReleaseDashboard() {
+
+        const dashboard = document.getElementById(
+
+            "release-dashboard"
+        );
+
+
+        if (!dashboard) {
+
+            return;
+        }
+
+
+        const get = id =>
+
+            document.getElementById(id);
+
+
+        let loading = false;
+
+        let eventsRequest = 0;
+
+
+        function formatDate(value) {
+
+            if (!value) {
+
+                return "—";
+            }
+
+
+            const date = new Date(value);
+
+
+            if (Number.isNaN(date.getTime())) {
+
+                return "—";
+            }
+
+
+            return date.toLocaleString(
+
+                "ru-RU",
+
+                {
+
+                    timeZone: "Asia/Novosibirsk"
+                }
+            );
+        }
+
+
+        function formatDuration(value) {
+
+            if (value === null || value === undefined) {
+
+                return "—";
+            }
+
+
+            return `${(Number(value) / 1000).toFixed(1)} s`;
+        }
+
+
+        function statusClass(status) {
+
+            const statuses = [
+
+                "pending",
+
+                "deploying",
+
+                "verifying",
+
+                "success",
+
+                "failed",
+
+                "rolling_back",
+
+                "rolled_back",
+
+                "rollback_failed"
+            ];
+
+
+            return statuses.includes(status)
+
+                ? `release-status-${status}`
+
+                : "";
+        }
+
+
+        async function request(url) {
+
+            const response = await fetch(url, {
+
+                credentials: "same-origin",
+
+                cache: "no-store",
+
+                signal: AbortSignal.timeout(15000)
+            });
+
+
+            if (response.status === 401) {
+
+                window.location.href = "/admin/login";
+
+                throw new Error(
+                    "Authentication required"
+                );
+            }
+
+
+            const data = await response.json();
+
+
+            if (!response.ok || !data.ok) {
+
+                throw new Error(
+
+                    data.error ||
+
+                    `HTTP ${response.status}`
+                );
+            }
+
+
+            return data;
+        }
+
+
+        function appendCell(row, value) {
+
+            const cell = document.createElement("td");
+
+
+            cell.textContent = value ?? "—";
+
+
+            row.appendChild(cell);
+
+
+            return cell;
+        }
+
+
+        function renderSummary(data) {
+
+            const summary = data.summary;
+
+            const latest = data.latest_release;
+
+
+            get("release-version").textContent =
+
+                latest?.release_version || "—";
+
+
+            const status = get("release-status");
+
+
+            status.textContent =
+
+                latest?.status || "No releases";
+
+
+            status.className =
+
+                statusClass(latest?.status);
+
+
+            get("release-total").textContent =
+
+                summary.total_releases ?? 0;
+
+
+            get("release-success-rate").textContent =
+
+                Number(summary.total_releases) === 0
+
+                    ? "—"
+
+                    : `${summary.success_rate}%`;
+
+
+            get("release-rollbacks").textContent =
+
+                summary.successful_rollbacks ?? 0;
+
+
+            get("release-duration").textContent =
+
+                `${summary.average_duration_seconds} s`;
+
+
+            const message = get("release-message");
+
+
+            message.className =
+
+                statusClass(latest?.status);
+
+
+            message.textContent =
+
+                Number(summary.active_releases) > 0
+
+                    ? "Есть активные или незавершённые релизы"
+
+                    : latest
+
+                        ? `Последний релиз: ${latest.release_version}`
+
+                        : "Релизы пока отсутствуют";
+        }
+
+
+        function renderHistory(releases) {
+
+            const body = get("release-history");
+
+
+            body.replaceChildren();
+
+
+            if (!releases.length) {
+
+                const row = document.createElement("tr");
+
+                const cell = appendCell(
+
+                    row,
+
+                    "История релизов пуста"
+                );
+
+
+                cell.colSpan = 8;
+
+                body.appendChild(row);
+
+                return;
+            }
+
+
+            for (const release of releases) {
+
+                const row = document.createElement("tr");
+
+
+                appendCell(row, release.release_version);
+
+
+                const commit = appendCell(
+
+                    row,
+
+                    String(release.commit_sha).slice(0, 12)
+                );
+
+
+                commit.className = "release-commit";
+
+                commit.title = release.commit_sha;
+
+
+                const status = appendCell(
+
+                    row,
+
+                    release.status
+                );
+
+
+                status.className =
+
+                    statusClass(release.status);
+
+
+                appendCell(
+
+                    row,
+
+                    release.migration_version
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    release.smoke_passed === true
+
+                        ? "Passed"
+
+                        : release.smoke_passed === false
+
+                            ? "Failed"
+
+                            : "—"
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    formatDuration(release.duration_ms)
+                );
+
+
+                appendCell(
+
+                    row,
+
+                    formatDate(release.started_at)
+                );
+
+
+                const action = appendCell(row, "");
+
+
+                const button =
+
+                    document.createElement("button");
+
+
+                button.type = "button";
+
+                button.className = "release-events-button";
+
+                button.textContent = "События";
+
+
+                button.addEventListener("click", () => {
+
+                    loadEvents(release.id);
+                });
+
+
+                action.appendChild(button);
+
+
+                body.appendChild(row);
+            }
+        }
+
+
+        async function loadEvents(id) {
+
+            const requestId = ++eventsRequest;
+
+
+            const container = get("release-events");
+
+
+            container.textContent =
+
+                "Загрузка событий...";
+
+
+            try {
+
+                const data = await request(
+
+                    `/api/releases/${encodeURIComponent(id)}/events`
+                );
+
+
+                if (requestId !== eventsRequest) {
+
+                    return;
+                }
+
+
+                container.replaceChildren();
+
+
+                if (!data.events.length) {
+
+                    container.textContent =
+
+                        "События отсутствуют";
+
+                    return;
+                }
+
+
+                for (const event of data.events) {
+
+                    const item = document.createElement("div");
+
+
+                    item.className = "release-event";
+
+
+                    const type = document.createElement("div");
+
+                    type.className = "release-event-type";
+
+                    type.textContent = event.event_type;
+
+
+                    const text = document.createElement("div");
+
+                    text.textContent = event.message;
+
+
+                    const date = document.createElement("div");
+
+                    date.className = "release-event-date";
+
+                    date.textContent = formatDate(
+
+                        event.created_at
+                    );
+
+
+                    item.append(type, text, date);
+
+                    container.appendChild(item);
+                }
+
+            } catch (error) {
+
+                if (requestId === eventsRequest) {
+
+                    container.textContent =
+
+                        "Ошибка: " + error.message;
+                }
+            }
+        }
+
+
+        async function loadDashboard() {
+
+            if (loading) {
+
+                return;
+            }
+
+
+            loading = true;
+
+
+            const button = get("release-refresh");
+
+            button.disabled = true;
+
+
+            try {
+
+                const [summary, history] =
+
+                    await Promise.all([
+
+                        request("/api/releases/summary"),
+
+                        request("/api/releases/history")
+                    ]);
+
+
+                renderSummary(summary);
+
+
+                renderHistory(history.releases || []);
+
+
+                get("release-updated").textContent =
+
+                    "Последнее обновление: " +
+
+                    formatDate(summary.generated_at);
+
+
+                console.log(
+
+                    "Release dashboard loaded"
+                );
+
+            } catch (error) {
+
+                const message = get("release-message");
+
+
+                message.className =
+
+                    "release-status-failed";
+
+
+                message.textContent =
+
+                    "Ошибка загрузки: " + error.message;
+
+
+                get("release-updated").textContent =
+
+                    "Данные могут быть устаревшими";
+
+            } finally {
+
+                loading = false;
+
+                button.disabled = false;
+            }
+        }
+
+
+        get("release-refresh").addEventListener(
+
+            "click",
+
+            loadDashboard
+        );
+
+
+        setInterval(() => {
+
+            if (!document.hidden) {
+
+                loadDashboard();
+            }
+
+        }, 60000);
+
+
+        loadDashboard();
+
+
+        console.log(
+
+            "Release monitoring initialized successfully"
+        );
+    }
+
+
+    if (document.readyState === "loading") {
+
+        document.addEventListener(
+
+            "DOMContentLoaded",
+
+            initializeReleaseDashboard
+        );
+
+    } else {
+
+        initializeReleaseDashboard();
+    }
+
+})();
+

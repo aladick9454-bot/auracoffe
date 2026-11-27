@@ -28,6 +28,12 @@ const {
 
 } = require("./services/migration-monitoring");
 
+const {
+
+    registerReleaseMonitoringRoutes
+
+} = require("./services/release-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -4049,6 +4055,13 @@ registerCiMonitoringRoutes(app, {
 });
 
 registerMigrationMonitoringRoutes(app, {
+
+    pool,
+
+    requireAdmin
+});
+
+registerReleaseMonitoringRoutes(app, {
 
     pool,
 
