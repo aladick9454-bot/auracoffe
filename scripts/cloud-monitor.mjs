@@ -30,10 +30,7 @@ const componentNames = {
     local_n8n: "Локальный n8n",
     website: "Сайт",
     backend: "Backend",
-    database: evaluateDatabase(
-    databaseReadiness,
-    backend
-    ),
+    database: "База данных",
     central_monitoring: "Центральный мониторинг",
     backup_system: "Резервное копирование"
 };
@@ -371,18 +368,10 @@ async function main() {
 
         backend,
 
-        database: databaseReadiness.status === "healthy"
-            ? {
-                status: "healthy",
-                details: "Database readiness check passed"
-            }
-            : {
-                status: backend.status === "healthy"
-                    ? "critical"
-                    : "unknown",
-
-                details: "Database readiness unavailable"
-            },
+        database: evaluateDatabase(
+            databaseReadiness,
+            backend
+        ),
 
         local_n8n: {
             status: "unknown",
