@@ -605,11 +605,16 @@ try {
                 ErrorAction = "Stop"
             }
 
-            $response = Invoke-RestMethod @requestParams
+$response = Invoke-RestMethod @requestParams
 
-            if ($response.ok -ne $true) {
-                throw "Restore status was not accepted"
-            }
+if ($response.ok -ne $true) {
+    Write-Warning (
+        "Response contains ok field: " +
+        ($null -ne $response.ok)
+    )
+
+    throw "Restore status was not accepted"
+}
 
             Write-Host "Restore status synchronized" -ForegroundColor Green
 
@@ -640,6 +645,10 @@ try {
         )
 
     }
+
+if ($_.Exception.Message -eq "Restore status was not accepted") {
+    Write-Warning "Webhook response validation failed"
+}
 
     $success = $false
 }
