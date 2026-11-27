@@ -2,7 +2,7 @@
 // AURA COFFEE
 // INDEPENDENT CLOUD MONITOR
 // ==========================================
-
+import { pathToFileURL } from "node:url";
 const BASE_URL =
     "https://aura-coffee-api-2lty.onrender.com";
 
@@ -24,12 +24,16 @@ const RUN_ID = [
 ].join("-");
 
 const TIMEOUT_MS = 90000;
+const WARNING_RESPONSE_MS = 2000;
 
 const componentNames = {
     local_n8n: "Локальный n8n",
     website: "Сайт",
     backend: "Backend",
-    database: "PostgreSQL",
+    database: evaluateDatabase(
+    databaseReadiness,
+    backend
+    ),
     central_monitoring: "Центральный мониторинг",
     backup_system: "Резервное копирование"
 };
@@ -107,9 +111,37 @@ async function request(
     }
 }
 
+export function evaluateResponse(
+    result,
+    duration,
+    expectedStatus = null
+) {
+    const validResponse =
+        result.ok &&
+        (
+            expectedStatus === null ||
+            result.data?.status === expectedStatus
+        );
+
+    if (!validResponse) {
+        return {
+            status: "critical",
+            details: `HTTP ${result.status}; unexpected response`
+        };
+    }
+
+    return {
+        status: duration >= WARNING_RESPONSE_MS
+            ? "warning"
+            : "healthy",
+
+        details: `HTTP ${result.status}; ${duration} ms`
+    };
+}
+
 async function probe(
     url,
-    requireJson = false
+    expectedStatus = null
 ) {
     let lastResult;
 
@@ -122,29 +154,15 @@ async function probe(
             const duration =
                 Date.now() - startedAt;
 
-            if (
-                result.ok &&
-                (
-                    !requireJson ||
-                    (
-                        result.data &&
-                        result.data.ok !== false
-                    )
-                )
-            ) {
-                return {
-                    status: "healthy",
+            lastResult = evaluateResponse(
+                result,
+                duration,
+                expectedStatus
+            );
 
-                    details: `HTTP ${
-                        result.status
-                    }; ${duration} ms`
-                };
+            if (lastResult.status !== "critical") {
+                return lastResult;
             }
-
-            lastResult = {
-                status: "critical",
-                details: `HTTP ${result.status}; unexpected response`
-            };
 
         } catch {
             lastResult = {
@@ -227,7 +245,7 @@ async function sendTelegram(message) {
     return String(response.data.result.message_id);
 }
 
-function calculateOverall(components) {
+export function calculateOverall(components) {
     const statuses = Object.values(components)
         .map(item => item.status);
 
@@ -302,6 +320,29 @@ function buildMessage(
     return lines.join("\n");
 }
 
+export function evaluateDatabase(
+    readiness,
+    backend
+) {
+    if (
+        readiness.status === "healthy" ||
+        readiness.status === "warning"
+    ) {
+        return {
+            status: readiness.status,
+            details: `Database readiness: ${readiness.details}`
+        };
+    }
+
+    return {
+        status: backend.status === "critical"
+            ? "unknown"
+            : "critical",
+
+        details: "Database readiness unavailable"
+    };
+}
+
 async function main() {
     validateEnvironment();
 
@@ -319,9 +360,9 @@ async function main() {
 
         probe(WEBSITE_URL),
 
-        probe(`${BASE_URL}/health`, true),
+        probe(`${BASE_URL}/health`, "ok"),
 
-        probe(`${BASE_URL}/ready`, true)
+        probe(`${BASE_URL}/ready`, "ready")
 
     ]);
 
@@ -382,12 +423,7 @@ async function main() {
                 }
             }
 
-            if (
-                state.components.database?.status === "healthy"
-            ) {
-                components.database =
-                    state.components.database;
-            }
+        
 
             stateAvailable = true;
         }
@@ -510,10 +546,15 @@ async function main() {
     );
 }
 
-main().catch(() => {
-    console.error(
-        "Cloud monitoring execution failed; inspect status logs"
-    );
+if (
+    process.argv[1] &&
+    import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+    main().catch(() => {
+        console.error(
+            "Cloud monitoring execution failed; inspect status logs"
+        );
 
-    process.exitCode = 1;
-});
+        process.exitCode = 1;
+    });
+}

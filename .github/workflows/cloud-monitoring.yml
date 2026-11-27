@@ -38,7 +38,8 @@ jobs:
 
       - name: Validate monitoring script
         run: node --check scripts/cloud-monitor.mjs
-
+      - name: Run monitoring tests
+        run: node --test tests/cloud-monitor.test.mjs
       - name: Execute independent monitoring
         env:
           CLOUD_MONITOR_SECRET: ${{ secrets.CLOUD_MONITOR_SECRET }}
