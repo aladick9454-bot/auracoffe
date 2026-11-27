@@ -1,0 +1,225 @@
+.performance-section {
+
+    margin-top: 32px;
+
+    padding: 24px;
+
+    background: #111827;
+
+    border: 1px solid #293548;
+
+    border-radius: 16px;
+
+    color: #e5e7eb;
+
+}
+
+
+.performance-header {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 16px;
+
+    flex-wrap: wrap;
+
+    margin-bottom: 20px;
+
+}
+
+
+.performance-header h2 {
+
+    margin: 0;
+
+    font-size: 24px;
+
+}
+
+
+#performance-refresh-btn {
+
+    padding: 10px 18px;
+
+    background: #2563eb;
+
+    border: none;
+
+    border-radius: 8px;
+
+    color: white;
+
+    cursor: pointer;
+
+}
+
+
+#performance-refresh-btn:disabled {
+
+    opacity: 0.6;
+
+    cursor: wait;
+
+}
+
+
+.performance-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 16px;
+
+    margin-bottom: 24px;
+
+}
+
+
+.performance-card {
+
+    padding: 20px;
+
+    border: 1px solid #334155;
+
+    border-radius: 12px;
+
+    background: #1e293b;
+
+}
+
+
+.performance-card span {
+
+    display: block;
+
+    color: #94a3b8;
+
+    font-size: 14px;
+
+    margin-bottom: 12px;
+
+}
+
+
+.performance-card strong {
+
+    font-size: 28px;
+
+    color: #f8fafc;
+
+}
+
+
+.performance-chart {
+
+    position: relative;
+
+    height: 260px;
+
+    margin-bottom: 24px;
+
+}
+
+
+.performance-table-wrapper {
+
+    overflow-x: auto;
+
+}
+
+
+.performance-table {
+
+    width: 100%;
+
+    border-collapse: collapse;
+
+    font-size: 14px;
+
+    white-space: nowrap;
+
+}
+
+
+.performance-table th,
+
+.performance-table td {
+
+    padding: 12px;
+
+    text-align: left;
+
+    border-bottom: 1px solid #334155;
+
+}
+
+
+.performance-table th {
+
+    color: #94a3b8;
+
+}
+
+
+.performance-passed {
+
+    color: #4ade80;
+
+    font-weight: 600;
+
+}
+
+
+.performance-failed {
+
+    color: #f87171;
+
+    font-weight: 600;
+
+}
+
+
+#performance-message,
+
+#performance-updated {
+
+    font-size: 13px;
+
+    color: #94a3b8;
+
+}
+
+
+@media (max-width: 1000px) {
+
+    .performance-grid {
+
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+    }
+
+}
+
+
+@media (max-width: 600px) {
+
+    .performance-grid {
+
+        grid-template-columns: 1fr;
+
+    }
+
+    .performance-section {
+
+        padding: 16px;
+
+    }
+
+}

@@ -34,6 +34,10 @@ const {
 
 } = require("./services/release-monitoring");
 
+const {
+    registerPerformanceMonitoringRoutes
+} = require("./services/performance-monitoring");
+
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
@@ -4066,6 +4070,14 @@ registerReleaseMonitoringRoutes(app, {
     pool,
 
     requireAdmin
+});
+
+registerPerformanceMonitoringRoutes(app, {
+
+    pool,
+
+    requireAdmin
+
 });
 
 console.log(

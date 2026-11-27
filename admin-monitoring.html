@@ -10,6 +10,12 @@
   <title>AURA COFFEE — Monitoring</title>
 
   <link rel="stylesheet" href="/admin/monitoring.css">
+
+  <link
+    rel="stylesheet"
+    href="/frontend/performance.css"
+>
+
 </head>
 
 <body>
@@ -2635,6 +2641,122 @@
 
 </section>
 
+<section
+    id="performance-dashboard"
+    class="performance-section"
+>
+
+    <div class="performance-header">
+
+        <h2>Application Performance</h2>
+
+        <button
+            id="performance-refresh-btn"
+            type="button"
+        >
+            Обновить
+        </button>
+
+    </div>
+
+    <p id="performance-message"></p>
+
+    <div class="performance-grid">
+
+        <div class="performance-card">
+
+            <span>Всего тестов</span>
+
+            <strong id="performance-total">
+                —
+            </strong>
+
+        </div>
+
+        <div class="performance-card">
+
+            <span>Успешность</span>
+
+            <strong id="performance-success">
+                —
+            </strong>
+
+        </div>
+
+        <div class="performance-card">
+
+            <span>Средний P95</span>
+
+            <strong id="performance-p95">
+                —
+            </strong>
+
+        </div>
+
+        <div class="performance-card">
+
+            <span>Средний RPS</span>
+
+            <strong id="performance-rps">
+                —
+            </strong>
+
+        </div>
+
+    </div>
+
+    <h3>История P95</h3>
+
+    <div class="performance-chart">
+
+        <canvas id="performance-chart"></canvas>
+
+    </div>
+
+    <h3>История нагрузочных тестов</h3>
+
+    <div class="performance-table-wrapper">
+
+        <table class="performance-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Дата</th>
+
+                    <th>Среда</th>
+
+                    <th>Endpoint</th>
+
+                    <th>Запросы</th>
+
+                    <th>RPS</th>
+
+                    <th>P95</th>
+
+                    <th>P99</th>
+
+                    <th>Ошибки</th>
+
+                    <th>Статус</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="performance-history">
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <p id="performance-updated"></p>
+
+</section>
+
 </main>
 
 
@@ -2713,6 +2835,8 @@
   </div>
 
 </dialog>
+
+<script src="/frontend/performance.js"></script>
 
 </body>
 </html>
